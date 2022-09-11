@@ -1,6 +1,12 @@
 __pycache__
-pickles
-cifar-10-batches-py
-MNIST
 .vscode
 .idea
+temp
+logs
+mnist
+emnist
+fmnist
+cifar10
+cifar100
+synthetic
+*.json
