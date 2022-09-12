@@ -85,14 +85,11 @@ def main(args):
         )
     else:  # NOTE: sort and partition
         classes = len(ori_dataset.classes) if args.classes <= 0 else args.classes
-        coefficient = (
-            5 if args.dataset == "cifar100" and args.super_class != 0 else 1
-        )
         all_datasets, stats = randomly_assign_classes(
             ori_datasets=concat_datasets,
             target_dataset=target_dataset,
             num_clients=client_num_in_total,
-            num_classes=max(1, int(classes * coefficient)),
+            num_classes=classes,
             transform=transform,
             target_transform=target_transform,
         )
@@ -120,13 +117,12 @@ def main(args):
                 f,
             )
 
-        if args.dataset != "femnist":
-            train_clients_stats = dict(
-                zip(clients_4_train, list(stats.values())[:train_clients_num])
-            )
-            test_clients_stats = dict(
-                zip(clients_4_test, list(stats.values())[train_clients_num:],)
-            )
+        train_clients_stats = dict(
+            zip(clients_4_train, list(stats.values())[:train_clients_num])
+        )
+        test_clients_stats = dict(
+            zip(clients_4_test, list(stats.values())[train_clients_num:],)
+        )
 
         with open(_CURRENT_DIR.parent / args.dataset / "all_stats.json", "w") as f:
             json.dump({"train": train_clients_stats, "test": test_clients_stats}, f)
