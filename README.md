@@ -38,15 +38,15 @@ Some stats about convergence speed are shown below.
 
 `--local_epoch`: `10`
 
-`--client_num_in_total`: `100`
+`--client_num_in_total`: `10`
 
-`--client_num_per_round`: `10`
+`--client_num_per_round`: `2`
 
 `--local_lr`: `1e-2`
 
 
-| Algo     | Epoch to 50% Acc | Epoch to 60% Acc | Epoch to 70% Acc | Test Acc |
-| -------- | ---------------- | ---------------- | ---------------- | -------- |
-| FedAvg   | 32             | 45             | /                | 64.40% |
-| FedProx  | 23 (1.5x)      | 39 (1.15x)     | /                | 65.90% |
-| SCAFFOLD | 9 (3.5x)       | 13 (3.4x)      | 26             | 76.55% |
+| Algo     | Epoch to 50% Acc | Epoch to 60% Acc | Epoch to 70% Acc | Epoch to 80% Acc | Test Acc |
+| -------- | ---------------- | ---------------- | ---------------- | ---------------- | -------- |
+| FedAvg   | 12               | 22               | 34               | 90               | 70.00%   |
+| FedProx  | 10 (1.2x)        | 22               | 34               | 90               | 70.41%   |
+| SCAFFOLD | 6 (2.0x)         | 20 (1.1x)        | 30 (1.1x)        | 56 (1.6x)        | 62.63%   |

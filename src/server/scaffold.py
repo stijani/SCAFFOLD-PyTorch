@@ -65,7 +65,7 @@ class SCAFFOLDServer(ServerBase):
                 self.training_acc[E].append(stats["acc_before"])
             self.aggregate(res_cache)
 
-            if E % self.args.save_period == 0:
+            if E % self.args.save_period == 0 and self.args.save_period > 0:
                 torch.save(
                     self.global_params_dict, self.temp_dir / "global_model.pt",
                 )
@@ -75,12 +75,12 @@ class SCAFFOLDServer(ServerBase):
     def aggregate(self, res_cache):
         y_delta_cache = list(zip(*res_cache))[0]
         c_delta_cache = list(zip(*res_cache))[1]
-        trainable_parameter = list(
-            filter(lambda param: param.requires_grad, self.global_params_dict.values())
+        trainable_parameter = filter(
+            lambda param: param.requires_grad, self.global_params_dict.values()
         )
 
         # update global model
-        weight = torch.tensor(
+        avg_weight = torch.tensor(
             [
                 1 / self.args.client_num_per_round
                 for _ in range(self.args.client_num_per_round)
@@ -88,21 +88,15 @@ class SCAFFOLDServer(ServerBase):
             device=self.device,
         )
         for param, y_del in zip(trainable_parameter, zip(*y_delta_cache)):
-            x_del = torch.sum(weight * torch.stack(y_del, dim=-1), dim=-1)
+            x_del = torch.sum(avg_weight * torch.stack(y_del, dim=-1), dim=-1)
             param.data += self.global_lr * x_del
 
         # update global control
-        weight = torch.tensor(
-            [
-                self.args.client_num_per_round / len(self.client_id_indices)
-                for _ in range(self.args.client_num_per_round)
-            ],
-            device=self.device,
-        )
-
         for c_g, c_del in zip(self.c_global, zip(*c_delta_cache)):
-            c_del = torch.sum(weight * torch.stack(c_del, dim=-1), dim=-1)
-            c_g.data += c_del
+            c_del = torch.sum(avg_weight * torch.stack(c_del, dim=-1), dim=-1)
+            c_g.data += (
+                self.args.client_num_per_round / len(self.client_id_indices)
+            ) * c_del
 
 
 if __name__ == "__main__":

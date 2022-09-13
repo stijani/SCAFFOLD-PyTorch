@@ -1,3 +1,4 @@
+import time
 from path import Path
 
 _CURRENT_DIR = Path(__file__).parent.abspath()
@@ -143,7 +144,6 @@ def main(args):
     )
 
 
-
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument(
@@ -160,7 +160,7 @@ if __name__ == "__main__":
         help="Only for controling data hetero degree while performing Dirichlet partition.",
     )
     ###############################################################
-    parser.add_argument("--client_num_in_total", type=int, default=100)
+    parser.add_argument("--client_num_in_total", type=int, default=10)
     parser.add_argument(
         "--fraction", type=float, default=0.9, help="Propotion of train clients"
     )
@@ -170,7 +170,7 @@ if __name__ == "__main__":
         default=-1,
         help="Num of classes that one client's data belong to.",
     )
-    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--seed", type=int, default=int(time.time()))
 
     ################# For EMNIST only #####################
     parser.add_argument(

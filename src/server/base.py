@@ -59,7 +59,7 @@ class ServerBase:
         _dummy_model = self.backbone(self.args.dataset).to(self.device)
         passed_epoch = 0
         self.global_params_dict: OrderedDict[str : torch.Tensor] = None
-        if os.listdir(self.temp_dir) != []:
+        if os.listdir(self.temp_dir) != [] and self.args.save_period > 0:
             if os.path.exists(self.temp_dir / "global_model.pt"):
                 self.global_params_dict = torch.load(self.temp_dir / "global_model.pt")
                 self.logger.log("Find existed global model...")

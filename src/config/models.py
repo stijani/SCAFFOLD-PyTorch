@@ -2,7 +2,7 @@ from torch import nn
 
 ARGS = {
     "mnist": (1, 256, 10),
-    "emnist": (1, 256, 82),
+    "emnist": (1, 256, 62),
     "fmnist": (1, 256, 10),
     "cifar10": (3, 400, 10),
     "cifar100": (3, 400, 100),

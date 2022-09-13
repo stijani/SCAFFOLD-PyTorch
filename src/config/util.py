@@ -60,6 +60,6 @@ def get_args() -> Namespace:
     parser.add_argument("--gpu", type=int, default=1)
     parser.add_argument("--log", type=int, default=0)
     parser.add_argument("--seed", type=int, default=17)
-    parser.add_argument("--client_num_per_round", type=int, default=10)
+    parser.add_argument("--client_num_per_round", type=int, default=2)
     parser.add_argument("--save_period", type=int, default=20)
     return parser.parse_args()
