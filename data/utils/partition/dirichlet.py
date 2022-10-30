@@ -19,10 +19,12 @@ def dirichlet_distribution(
     Y = [[] for _ in range(num_clients)]
     stats = {}
     targets_numpy = np.concatenate(
-        [ds.targets for ds in ori_dataset], axis=0, dtype=np.int64
+        # [ds.targets for ds in ori_dataset], axis=0, dtype=np.int64
+        [ds.targets for ds in ori_dataset], axis=0
     )
     data_numpy = np.concatenate(
-        [ds.data for ds in ori_dataset], axis=0, dtype=np.float32
+        # [ds.data for ds in ori_dataset], axis=0, dtype=np.float32
+        [ds.data for ds in ori_dataset], axis=0
     )
     idx = [np.where(targets_numpy == i)[0] for i in range(NUM_CLASS)]
 
