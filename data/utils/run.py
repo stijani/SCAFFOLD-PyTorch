@@ -117,7 +117,7 @@ def main(args):
         clients_4_train = [i for i in range(train_clients_num)]
         clients_4_test = [i for i in range(train_clients_num, client_num_in_total)]
 
-        with open(_PICKLES_DIR / "seperation.pkl", "wb") as f:
+        with open(os.path.join(_PICKLES_DIR, "seperation.pkl"), "wb") as f:
             pickle.dump(
                 {
                     "train": clients_4_train,
