@@ -16,7 +16,8 @@ def sort_and_alloc(
 
     dict_users = {i: np.array([], dtype=np.int64) for i in range(num_clients)}
 
-    labels = np.concatenate([ds.targets for ds in datasets], axis=0, dtype=np.int64)
+    #labels = np.concatenate([ds.targets for ds in datasets], axis=0, dtype=np.int64)
+    labels = np.concatenate([ds.targets for ds in datasets], axis=0)
     idxs = np.arange(total_sample_nums)
 
     # sort sample indices according to labels
@@ -52,11 +53,15 @@ def randomly_assign_classes(
 ) -> Tuple[List[Dataset], Dict[str, Dict[str, int]]]:
     stats = {}
     dict_users = sort_and_alloc(ori_datasets, num_clients, num_classes)
+    # targets_numpy = np.concatenate(
+    #     [ds.targets for ds in ori_datasets], axis=0, dtype=np.int64
     targets_numpy = np.concatenate(
-        [ds.targets for ds in ori_datasets], axis=0, dtype=np.int64
+        [ds.targets for ds in ori_datasets], axis=0
     )
+    # data_numpy = np.concatenate(
+    #     [ds.data for ds in ori_datasets], axis=0, dtype=np.float32
     data_numpy = np.concatenate(
-        [ds.data for ds in ori_datasets], axis=0, dtype=np.float32
+        [ds.data for ds in ori_datasets], axis=0
     )
     datasets = []
     for i, indices in dict_users.items():

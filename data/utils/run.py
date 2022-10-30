@@ -1,11 +1,13 @@
 import time
-from path import Path
+# from path import Path
+from pathlib import Path
 
-_CURRENT_DIR = Path(__file__).parent.abspath()
+# _CURRENT_DIR = Path(__file__).parent.abspath()
 import sys
+sys.path.append("./data/utils")
 
-sys.path.append(_CURRENT_DIR)
-sys.path.append(_CURRENT_DIR.parent)
+# sys.path.append(_CURRENT_DIR)
+# sys.path.append(_CURRENT_DIR.parent)
 import json
 import os
 import pickle
@@ -18,8 +20,10 @@ from torchvision import transforms
 from torchvision.datasets import CIFAR10, CIFAR100, EMNIST, MNIST, FashionMNIST
 
 from constants import MEAN, STD
-from partition import dirichlet_distribution, randomly_assign_classes
-from utils.dataset import CIFARDataset, MNISTDataset
+# from partition import dirichlet_distribution, randomly_assign_classes
+from partition.assign_classes import randomly_assign_classes
+from partition.dirichlet import dirichlet_distribution 
+from dataset import CIFARDataset, MNISTDataset
 
 DATASET = {
     "mnist": (MNIST, MNISTDataset),
@@ -31,12 +35,15 @@ DATASET = {
 
 
 def main(args):
-    _DATASET_ROOT = (
-        Path(args.root).abspath() / args.dataset
-        if args.root is not None
-        else _CURRENT_DIR.parent / args.dataset
-    )
-    _PICKLES_DIR = _CURRENT_DIR.parent / args.dataset / "pickles"
+    # _DATASET_ROOT = (
+    #     Path(args.root).abspath() / args.dataset
+    #     if args.root is not None
+    #     else _CURRENT_DIR.parent / args.dataset
+    # )
+    _DATASET_ROOT = os.path.join(args.root, args.dataset)
+
+    # _PICKLES_DIR = _CURRENT_DIR.parent / args.dataset / "pickles"
+    _PICKLES_DIR = os.path.join(_DATASET_ROOT, "pickles")
 
     np.random.seed(args.seed)
     random.seed(args.seed)
@@ -85,7 +92,8 @@ def main(args):
             target_transform=target_transform,
         )
     else:  # NOTE: sort and partition
-        classes = len(ori_dataset.classes) if args.classes <= 0 else args.classes
+        # classes = len(ori_dataset.classes) if args.classes <= 0 else args.classes
+        classes = args.num_classes_dataset if args.classes <= 0 else args.classes
         all_datasets, stats = randomly_assign_classes(
             ori_datasets=concat_datasets,
             target_dataset=target_dataset,
@@ -99,7 +107,8 @@ def main(args):
         range(0, len(all_datasets), args.client_num_in_each_pickles)
     ):
         subset = all_datasets[client_id : client_id + args.client_num_in_each_pickles]
-        with open(_PICKLES_DIR / str(subset_id) + ".pkl", "wb") as f:
+        # with open(_PICKLES_DIR / str(subset_id) + ".pkl", "wb") as f:
+        with open(os.path.join(_PICKLES_DIR, f"{str(subset_id)}.pkl"), "wb") as f:
             pickle.dump(subset, f)
 
     # save stats
@@ -125,23 +134,26 @@ def main(args):
             zip(clients_4_test, list(stats.values())[train_clients_num:],)
         )
 
-        with open(_CURRENT_DIR.parent / args.dataset / "all_stats.json", "w") as f:
+        # with open(_CURRENT_DIR.parent / args.dataset / "all_stats.json", "w") as f:
+        with open(os.path.join(_DATASET_ROOT, "all_stats.json"), "w") as f:
             json.dump({"train": train_clients_stats, "test": test_clients_stats}, f)
 
     else:  # NOTE: "sample"  save stats
         client_id_indices = [i for i in range(client_num_in_total)]
-        with open(_PICKLES_DIR / "seperation.pkl", "wb") as f:
+        # with open(_PICKLES_DIR / "seperation.pkl", "wb") as f:
+        with open(os.path.join(_PICKLES_DIR, "seperation.pkl"), "wb") as f:
             pickle.dump(
                 {"id": client_id_indices, "total": client_num_in_total,}, f,
             )
-        with open(_CURRENT_DIR.parent / args.dataset / "all_stats.json", "w") as f:
+        # with open(_CURRENT_DIR.parent / args.dataset / "all_stats.json", "w") as f:
+        with open(os.path.join(_DATASET_ROOT, "all_stats.json"), "w") as f:
             json.dump(stats, f)
 
-    args.root = (
-        Path(args.root).abspath()
-        if str(_DATASET_ROOT) != str(_CURRENT_DIR.parent / args.dataset)
-        else None
-    )
+    # args.root = (
+    #     Path(args.root).abspath()
+    #     if str(_DATASET_ROOT) != str(_CURRENT_DIR.parent / args.dataset)
+    #     else None
+    # )
 
 
 if __name__ == "__main__":
@@ -170,6 +182,12 @@ if __name__ == "__main__":
         default=-1,
         help="Num of classes that one client's data belong to.",
     )
+    parser.add_argument(
+        "--num_classes_dataset",
+        type=int,
+        default=10,
+        help="number of categories in the entire data set.",
+    )
     parser.add_argument("--seed", type=int, default=int(time.time()))
 
     ################# For EMNIST only #####################
@@ -188,5 +206,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     main(args)
     args_dict = dict(args._get_kwargs())
-    with open(_CURRENT_DIR.parent / "args.json", "w") as f:
+    # with open(_CURRENT_DIR.parent / "args.json", "w") as f:
+    with open(os.path.join(os.path.join(args.root, args.dataset), "args.json"), "w") as f:
         json.dump(args_dict, f)

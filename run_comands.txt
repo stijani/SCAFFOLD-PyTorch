@@ -1,0 +1,18 @@
+# create data set dirichlet
+# classes -> number of classes that a client's data can belong to
+# emnist_split -> only used for emnist dataset
+# type -> not sure what it's for
+# client_num_in_each_pickles -> not sure what it's for
+python ./data/utils/run.py\
+ --dataset cifar10\
+ --alpha 0\
+ --client_num_in_total 10\
+ --fraction 0.5\
+ --classes -1\
+ --seed 14\
+ --emnist_split byclass\
+ --type sample\
+ --client_num_in_each_pickles 10\
+ --root ../../dataset/fl_datasets\
+ --num_classes_dataset 10
+
