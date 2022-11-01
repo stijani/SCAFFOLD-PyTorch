@@ -4,15 +4,16 @@ from typing import Dict, List, OrderedDict, Tuple
 
 import torch
 import numpy as np
-from path import Path
+# from path import Path
 from rich.console import Console
 from torch.utils.data import Subset, DataLoader
 
-_CURRENT_DIR = Path(__file__).parent.abspath()
+#_CURRENT_DIR = Path(__file__).parent.abspath()
 
 import sys
 
-sys.path.append(_CURRENT_DIR.parent)
+# sys.path.append(_CURRENT_DIR.parent)
+sys.path.append("./")
 
 from data.utils.util import get_dataset
 
@@ -65,7 +66,8 @@ class ClientBase:
             pred = torch.softmax(logits, -1).argmax(-1)
             correct += (pred == y).int().sum()
             size += y.size(-1)
-        acc = correct / size * 100.0
+        # acc = correct / size * 100.0
+        acc = correct.float() / size * 100.0
         loss = loss / len(self.testset)
         return loss.item(), acc.item()
 
@@ -85,6 +87,13 @@ class ClientBase:
         self.model.train()
         for _ in range(self.local_epochs):
             x, y = self.get_data_batch()
+            ##################################
+            # I couldn't the transormation to work 
+            # so I couldn't apply mean/std normalization
+            # more info in src/data/utils/dataset.py
+            # Just dividing each pixel by 255 suffices
+            x /= 255.0
+            ##################################
             logits = self.model(x)
             loss = self.criterion(logits, y)
             self.optimizer.zero_grad()
@@ -124,11 +133,14 @@ class ClientBase:
             acc_before = 0
             acc_after = 0
             if evaluate:
+                # first evaluate with the recieved global weights prior to training
                 loss_before, acc_before = self.evaluate()
 
+            # carryout local training
             res = self._train(*args, **kwargs)
 
             if evaluate:
+                # carryout evaluation after local training - using the local weights
                 loss_after, acc_after = self.evaluate()
 
             if verbose:

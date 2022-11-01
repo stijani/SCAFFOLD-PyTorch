@@ -1,27 +1,34 @@
 import json
 import math
 import os
+import sys
 import pickle
 from typing import Dict, List, Tuple, Union
 
-from path import Path
+sys.path.append("./")
+
+#############################################
+# pickle.load doesn't work unless, this line
+# below exists.
+# source: https://stackoverflow.com/questions/54195162/error-reading-pickle-file-no-module-named-data
+sys.path.append("./data/utils")
+#############################################
+from exp_configs import config_test as config
 from torch.utils.data import Subset, random_split
 
-_CURRENT_DIR = Path(__file__).parent.abspath()
-_ARGS_DICT = json.load(open(_CURRENT_DIR.parent / "args.json", "r"))
+_ARGS_DICT = json.load(open(config["data_args_file"], "r"))
 
 
 def get_dataset(
     dataset: str, client_id: int, batch_size=32, valset_ratio=0.1, testset_ratio=0.1,
 ) -> Dict[str, Subset]:
     client_num_in_each_pickles = _ARGS_DICT["client_num_in_each_pickles"]
-    pickles_dir = _CURRENT_DIR.parent / dataset / "pickles"
+    pickles_dir = config["data_pickle_dir"]
     if os.path.isdir(pickles_dir) is False:
         raise RuntimeError("Please preprocess and create pickles first.")
-
-    pickle_path = (
-        pickles_dir / f"{math.floor(client_id / client_num_in_each_pickles)}.pkl"
-    )
+    pickle_path = os.path.join(pickles_dir, 
+                               f"{math.floor(client_id / client_num_in_each_pickles)}.pkl"
+                               )
     with open(pickle_path, "rb") as f:
         subset = pickle.load(f)
     client_dataset = subset[client_id % client_num_in_each_pickles]
@@ -37,8 +44,8 @@ def get_dataset(
 def get_client_id_indices(
     dataset,
 ) -> Union[Tuple[List[int], List[int], int], Tuple[List[int], int]]:
-    pickles_dir = _CURRENT_DIR.parent / dataset / "pickles"
-    with open(pickles_dir / "seperation.pkl", "rb") as f:
+    pickles_dir = config["data_pickle_dir"]
+    with open(os.path.join(pickles_dir, "seperation.pkl"), "rb") as f:
         seperation = pickle.load(f)
     if _ARGS_DICT["type"] == "user":
         return seperation["train"], seperation["test"], seperation["total"]

@@ -49,19 +49,24 @@ class CIFARDataset(Dataset):
                 _data = torch.tensor(_data)
         #self.data = torch.permute(_data, [0, -1, 1, 2]).float()
         self.data = _data.permute([0, -1, 1, 2]).float()
-        
+
         if not isinstance(_targets, torch.Tensor):
             _targets = torch.tensor(_targets)
         self.targets = _targets.long()
-
+    
     def __getitem__(self, index):
         data, targets = self.data[index], self.targets[index]
+        ######################################################
+        # I could't get the to work with transform. I'm commenting 
+        # this bit of code out. To normalize, I will just divide
+        # each batch of data by 32.
+        #####################################################
 
-        if self.transform is not None:
-            data = self.transform(self.data[index])
+        # if self.transform is not None:
+        #     data = self.transform(self.data[index])
 
-        if self.target_transform is not None:
-            targets = self.target_transform(self.targets[index])
+        # if self.target_transform is not None:
+        #     targets = self.target_transform(self.targets[index])
 
         return data, targets
 

@@ -5,12 +5,18 @@ from typing import OrderedDict, Union
 
 import numpy as np
 import torch
-from path import Path
+# from path import Path
+import os
+import sys
 
-PROJECT_DIR = Path(__file__).parent.parent.parent.abspath()
-LOG_DIR = PROJECT_DIR / "logs"
-TEMP_DIR = PROJECT_DIR / "temp"
-DATA_DIR = PROJECT_DIR / "data"
+sys.path.append("./")
+from exp_configs import config_test as config
+
+# PROJECT_DIR = Path(__file__).parent.parent.parent.abspath()
+OUTPUT_DIR = config["exp_output_base"]
+LOG_DIR = os.path.join(config["exp_output_base"],"logs")
+TEMP_DIR = os.path.join(config["exp_output_base"], "temp")
+# DATA_DIR = "~/projects/dataset/fl_dataset/cifar10"
 
 
 def fix_random_seed(seed: int) -> None:
@@ -52,14 +58,14 @@ def get_args() -> Namespace:
         "--dataset",
         type=str,
         choices=["mnist", "cifar10", "cifar100", "emnist", "fmnist"],
-        default="mnist",
+        default="cifar10",
     )
-    parser.add_argument("--batch_size", type=int, default=-1)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--valset_ratio", type=float, default=0.1)
     parser.add_argument("--testset_ratio", type=float, default=0.1)
-    parser.add_argument("--gpu", type=int, default=1)
+    parser.add_argument("--gpu", type=int, default=2)
     parser.add_argument("--log", type=int, default=0)
     parser.add_argument("--seed", type=int, default=17)
-    parser.add_argument("--client_num_per_round", type=int, default=2)
+    parser.add_argument("--client_num_per_round", type=int, default=5)
     parser.add_argument("--save_period", type=int, default=20)
     return parser.parse_args()

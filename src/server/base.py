@@ -5,29 +5,31 @@ from argparse import Namespace
 from collections import OrderedDict
 
 import torch
-from path import Path
+# from path import Path
 from rich.console import Console
 from rich.progress import track
 from tqdm import tqdm
 
-_CURRENT_DIR = Path(__file__).parent.abspath()
+#_CURRENT_DIR = Path(__file__).parent.abspath()
 
 import sys
 
-sys.path.append(_CURRENT_DIR.parent)
+#sys.path.append(_CURRENT_DIR.parent)
+sys.path.append("./src")
+sys.path.append("./data")
 
 from config.models import LeNet5
 from config.util import (
-    DATA_DIR,
+    # DATA_DIR,
     LOG_DIR,
-    PROJECT_DIR,
+    OUTPUT_DIR,
     TEMP_DIR,
     clone_parameters,
     fix_random_seed,
 )
 
-sys.path.append(PROJECT_DIR)
-sys.path.append(DATA_DIR)
+#sys.path.append(OUTPUT_DIR)
+#sys.path.append(DATA_DIR)
 from client.base import ClientBase
 from data.utils.util import get_client_id_indices
 
@@ -52,7 +54,7 @@ class ServerBase:
         self.client_id_indices, self.client_num_in_total = get_client_id_indices(
             self.args.dataset
         )
-        self.temp_dir = TEMP_DIR / self.algo
+        self.temp_dir = os.path.join(TEMP_DIR, self.algo)
         if not os.path.isdir(self.temp_dir):
             os.makedirs(self.temp_dir)
 
@@ -60,12 +62,13 @@ class ServerBase:
         passed_epoch = 0
         self.global_params_dict: OrderedDict[str : torch.Tensor] = None
         if os.listdir(self.temp_dir) != [] and self.args.save_period > 0:
-            if os.path.exists(self.temp_dir / "global_model.pt"):
-                self.global_params_dict = torch.load(self.temp_dir / "global_model.pt")
+            # if os.path.exists(self.temp_dir / "global_model.pt"):
+            if os.path.exists(os.path.join(self.temp_dir, "global_model.pt")):
+                self.global_params_dict = torch.load(os.path.join(self.temp_dir, "global_model.pt"))
                 self.logger.log("Find existed global model...")
 
-            if os.path.exists(self.temp_dir / "epoch.pkl"):
-                with open(self.temp_dir / "epoch.pkl", "rb") as f:
+            if os.path.exists(os.path.join(self.temp_dir, "epoch.pkl")):
+                with open(os.path.join(self.temp_dir, "epoch.pkl"), "rb") as f:
                     passed_epoch = pickle.load(f)
                 self.logger.log(f"Have run {passed_epoch} epochs already.",)
         else:
@@ -113,9 +116,11 @@ class ServerBase:
 
             if E % self.args.save_period == 0:
                 torch.save(
-                    self.global_params_dict, self.temp_dir / "global_model.pt",
+                    # self.global_params_dict, self.temp_dir / "global_model.pt",
+                    self.global_params_dict, os.path.join(self.temp_dir, "global_model.pt"),
                 )
-                with open(self.temp_dir / "epoch.pkl", "wb") as f:
+                # with open(self.temp_dir / "epoch.pkl", "wb") as f:
+                with open(os.path.join(self.temp_dir, "epoch.pkl"), "wb") as f:
                     pickle.dump(E, f)
 
     @torch.no_grad()
@@ -123,7 +128,8 @@ class ServerBase:
         updated_params_cache = list(zip(*res_cache))[0]
         weights_cache = list(zip(*res_cache))[1]
         weight_sum = sum(weights_cache)
-        weights = torch.tensor(weights_cache, device=self.device) / weight_sum
+        # weights = torch.tensor(weights_cache, device=self.device) / weight_sum
+        weights = torch.tensor(weights_cache, device=self.device).float() / weight_sum
 
         aggregated_params = []
 
