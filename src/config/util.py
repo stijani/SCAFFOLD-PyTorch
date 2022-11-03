@@ -51,9 +51,9 @@ def clone_parameters(
 def get_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument("--global_epochs", type=int, default=100)
-    parser.add_argument("--local_epochs", type=int, default=10)
+    parser.add_argument("--local_epochs", type=int, default=10, help="this is actually the number of localsteps, not epochs")
     parser.add_argument("--local_lr", type=float, default=1e-2)
-    parser.add_argument("--verbose_gap", type=int, default=20)
+    parser.add_argument("--verbose_gap", type=int, default=2)
     parser.add_argument(
         "--dataset",
         type=str,
@@ -67,5 +67,5 @@ def get_args() -> Namespace:
     parser.add_argument("--log", type=int, default=0)
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument("--client_num_per_round", type=int, default=5)
-    parser.add_argument("--save_period", type=int, default=20)
+    parser.add_argument("--save_period", type=int, default=20, help="save the aggregated weights after a certain number of comms round")
     return parser.parse_args()

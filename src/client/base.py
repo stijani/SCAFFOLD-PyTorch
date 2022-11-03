@@ -52,14 +52,40 @@ class ClientBase:
         self.logger = logger
         self.untrainable_params: Dict[str, Dict[str, torch.Tensor]] = {}
 
+    # @torch.no_grad()
+    # def evaluate(self, use_valset=True):
+    #     self.model.eval()
+    #     size = 0
+    #     loss = 0
+    #     correct = 0
+    #     dataloader = DataLoader(self.valset if use_valset else self.testset, 32)
+    #     for x, y in dataloader:
+    #         x, y = x.to(self.device), y.to(self.device)
+    #         logits = self.model(x)
+    #         loss += self.criterion(logits, y)
+    #         pred = torch.softmax(logits, -1).argmax(-1)
+    #         correct += (pred == y).int().sum()
+    #         size += y.size(-1)
+    #     # acc = correct / size * 100.0
+    #     acc = correct.float() / size * 100.0
+    #     loss = loss / len(self.testset)
+    #     return loss.item(), acc.item()
+
     @torch.no_grad()
-    def evaluate(self, use_valset=True):
+    def evaluate(self, data): # TODO: add type anno for data
         self.model.eval()
         size = 0
         loss = 0
         correct = 0
-        dataloader = DataLoader(self.valset if use_valset else self.testset, 32)
+        dataloader = DataLoader(data, 32) # TODO: change eval bs argument
         for x, y in dataloader:
+            ##################################
+            # I couldn't the transormation to work 
+            # so I couldn't apply mean/std normalization
+            # more info in src/data/utils/dataset.py
+            # Just dividing each pixel by 255 suffices
+            x /= 255.0
+            ##################################
             x, y = x.to(self.device), y.to(self.device)
             logits = self.model(x)
             loss += self.criterion(logits, y)
@@ -104,15 +130,26 @@ class ClientBase:
             len(self.trainset.dataset),
         )
 
+    # def test(
+    #     self, client_id: int, model_params: OrderedDict[str, torch.Tensor],
+    # ):
+    #     self.client_id = client_id
+    #     self.set_parameters(model_params)
+    #     self.get_client_local_dataset()
+    #     loss, acc = self.evaluate()
+    #     stats = {"loss": loss, "acc": acc}
+    #     return stats
+
+    
     def test(
-        self, client_id: int, model_params: OrderedDict[str, torch.Tensor],
-    ):
-        self.client_id = client_id
+        self, data, model_params: OrderedDict[str, torch.Tensor],
+    ): 
+        # TODO: add type anno for data
         self.set_parameters(model_params)
-        self.get_client_local_dataset()
-        loss, acc = self.evaluate()
+        loss, acc = self.evaluate(data)
         stats = {"loss": loss, "acc": acc}
         return stats
+
 
     def get_client_local_dataset(self):
         datasets = get_dataset(
@@ -126,6 +163,42 @@ class ClientBase:
         self.valset = datasets["val"]
         self.testset = datasets["test"]
 
+
+    # def _log_while_training(self, evaluate=True, verbose=False):
+    #     def _log_and_train(*args, **kwargs):
+    #         loss_before = 0
+    #         loss_after = 0
+    #         acc_before = 0
+    #         acc_after = 0
+    #         if evaluate:
+    #             # first evaluate with the recieved global weights prior to training
+    #             loss_before, acc_before = self.evaluate()
+
+    #         # carryout local training
+    #         res = self._train(*args, **kwargs)
+
+    #         if evaluate:
+    #             # carryout evaluation after local training - using the local weights
+    #             loss_after, acc_after = self.evaluate()
+
+    #         if verbose:
+    #             self.logger.log(
+    #                 "client [{}]   [bold red]loss: {:.4f} -> {:.4f}    [bold blue]accuracy: {:.2f}% -> {:.2f}%".format(
+    #                     self.client_id, loss_before, loss_after, acc_before, acc_after
+    #                 )
+    #             )
+
+    #         stats = {
+    #             "loss_before": loss_before,
+    #             "loss_after": loss_after,
+    #             "acc_before": acc_before,
+    #             "acc_after": acc_after,
+    #         }
+    #         return res, stats
+
+    #     return _log_and_train
+
+
     def _log_while_training(self, evaluate=True, verbose=False):
         def _log_and_train(*args, **kwargs):
             loss_before = 0
@@ -133,15 +206,16 @@ class ClientBase:
             acc_before = 0
             acc_after = 0
             if evaluate:
-                # first evaluate with the recieved global weights prior to training
-                loss_before, acc_before = self.evaluate()
+                # first evaluate with the recieved global weights prior to 
+                # training using the client's valset
+                loss_before, acc_before = self.evaluate(self.valset)
 
             # carryout local training
             res = self._train(*args, **kwargs)
 
             if evaluate:
                 # carryout evaluation after local training - using the local weights
-                loss_after, acc_after = self.evaluate()
+                loss_after, acc_after = self.evaluate(self.valset)
 
             if verbose:
                 self.logger.log(
