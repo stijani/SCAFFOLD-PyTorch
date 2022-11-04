@@ -72,29 +72,37 @@ class ClientBase:
     #     return loss.item(), acc.item()
 
     @torch.no_grad()
-    def evaluate(self, data): # TODO: add type anno for data
+    def evaluate(self, data, bs=32): # TODO: add type anno for data
+        size_ = len(data)
         self.model.eval()
-        size = 0
+        # size = 0
         loss = 0
         correct = 0
-        dataloader = DataLoader(data, 32) # TODO: change eval bs argument
+        dataloader = DataLoader(data, bs) # TODO: change eval bs argument
         for x, y in dataloader:
             ##################################
             # I couldn't the transormation to work 
             # so I couldn't apply mean/std normalization
             # more info in src/data/utils/dataset.py
             # Just dividing each pixel by 255 suffices
-            x /= 255.0
+            #x /= 255.0
             ##################################
             x, y = x.to(self.device), y.to(self.device)
             logits = self.model(x)
             loss += self.criterion(logits, y)
             pred = torch.softmax(logits, -1).argmax(-1)
             correct += (pred == y).int().sum()
-            size += y.size(-1)
-        # acc = correct / size * 100.0
-        acc = correct.float() / size * 100.0
-        loss = loss / len(self.testset)
+            #############################
+            # print(pred)
+            # print(y)
+            # print("#####################")
+            # #print(pred)
+            ###############################
+            size_ += y.size(-1)
+        #acc = correct / size_ * 100.0
+        acc = (correct.float() / size_) * 100.0
+        #loss = loss / len(self.testset)
+        loss = loss / size_
         return loss.item(), acc.item()
 
     def train(
@@ -142,11 +150,10 @@ class ClientBase:
 
     
     def test(
-        self, data, model_params: OrderedDict[str, torch.Tensor],
-    ): 
+        self, data, model_params: OrderedDict[str, torch.Tensor], bs=32): 
         # TODO: add type anno for data
         self.set_parameters(model_params)
-        loss, acc = self.evaluate(data)
+        loss, acc = self.evaluate(data, bs)
         stats = {"loss": loss, "acc": acc}
         return stats
 

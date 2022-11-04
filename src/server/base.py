@@ -9,6 +9,8 @@ import torch
 from rich.console import Console
 from rich.progress import track
 from tqdm import tqdm
+import numpy as np
+from torch.utils.data import DataLoader, TensorDataset # TODO: cleanup
 
 #_CURRENT_DIR = Path(__file__).parent.abspath()
 
@@ -81,6 +83,7 @@ class ServerBase:
 
         self.trainer: ClientBase = None # trainer is of type CLientBase, e.g FedAvgClient
         self.training_acc = [[] for _ in range(self.global_epochs)]
+        self.X_global_test, self.y_global_test = self.get_global_test_data()
 
     def train(self):
         """
@@ -119,12 +122,14 @@ class ServerBase:
                 self.training_acc[E].append(stats["acc_before"])
             self.aggregate(res_cache)
 
+            ##############################################################
+            # this epoch's training has completed, optional steps
+            ##############################################################
+            if E % self.args.global_test_period == 0:
+                self.test_global(E) # test current global model on the global test dataset
+
             if E % self.args.save_period == 0:
-                torch.save(
-                    # self.global_params_dict, self.temp_dir / "global_model.pt",
-                    self.global_params_dict, os.path.join(self.temp_dir, "global_model.pt"),
-                )
-                # with open(self.temp_dir / "epoch.pkl", "wb") as f:
+                torch.save(self.global_params_dict, os.path.join(self.temp_dir, "global_model.pt"))
                 with open(os.path.join(self.temp_dir, "epoch.pkl"), "wb") as f:
                     pickle.dump(E, f) # save the comms round number too
 
@@ -223,11 +228,9 @@ class ServerBase:
 
     def test(self, use_valset: bool=True) -> None:
         """
-           1. Tests the curent global model on all clients
+           1. Tests the final global model on all clients
               validation or test dataset.
            2. prints out each client loss/acc as well as the average across all clients
-           TODO: Create similar function to test the global model on the 
-                 global test dataset, call it `test_global()`
         """
         self.logger.log("=" * 30, "TESTING", "=" * 30, style="bold blue")
         all_loss = []
@@ -244,7 +247,7 @@ class ServerBase:
             # state of the client _id of the trainer to the curent clients id
             self.trainer.client_id = client_id
             self.trainer.get_client_local_dataset()
-            data = self.trainer.valset if use_valset else selftrainer.testset
+            data = self.trainer.valset if use_valset else self.trainer.testset
 
             stats = self.trainer.test(
                 data, model_params=client_local_params,
@@ -302,21 +305,36 @@ class ServerBase:
                 )
                 epoch_to_50 = E
 
+    def get_global_test_data(self):
+        X_test = np.load(f"{self.args.global_test_data_dir}/test_features.npy")
+        y_test = np.load(f"{self.args.global_test_data_dir}/test_labels.npy")
+        return X_test, y_test
 
-    # def test_global(self):
-    #     """TODO: write doc string
-    #     """
-    #     self.logger.log("=" * 30, "TESTING", "=" * 30, style="bold blue")
-    #     client_local_params = clone_parameters(self.global_params_dict)
-    #     stats = self.trainer.test(
-    #         client_id=client_id, model_params=client_local_params,
-    #     )
+
+    def test_global(self, E):
+        """TODO: write doc string
+        """
+        #loss_global, acc_global = self.trainer.evaluate(self.trainer.global_testset)
+        # formated print
+        self.logger.log("=" * 30, f"GLOBAL TEST RESULTS AT ROUND: {E}", "=" * 30)
+        X = torch.tensor(self.X_global_test).permute([0, -1, 1, 2]).float() 
+        y = torch.tensor(self.y_global_test).long()
+        #DataLoader((X, y), 1000) # TODO: change to cmd arg
+        data = TensorDataset(X, y)
+
+        stats = self.trainer.test(data,
+                                  clone_parameters(self.global_params_dict),
+                                  1000
+                                  )
+                                  
+        acc_global, loss_global = stats["acc"], stats["loss"]
+        self.logger.log(f"global_loss: {round(loss_global, 2)} | global_acc:{round(acc_global, 2)}%")
+
 
     def run(self):
         self.logger.log("Arguments:", dict(self.args._get_kwargs()))
         self.train()
         self.test()
-        #self.test_global()
         if self.args.log:
             if not os.path.isdir(LOG_DIR):
                 os.mkdir(LOG_DIR)
