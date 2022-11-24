@@ -24,7 +24,6 @@ For NIID - 1, 2, 5 e.t.c partitioning, like in fedshare
          --classes 10\
          --seed 14\
          --emnist_split byclass\
-         --type user\
          --client_num_in_each_pickles 10\
          --root ../../dataset/fl_datasets\
          --num_classes_dataset 10
@@ -41,7 +40,6 @@ For Dirichlet partitioning, like in other papers
          --classes -1\
          --seed 14\
          --emnist_split byclass\
-         --type user\
          --client_num_in_each_pickles 10\
          --root ../../dataset/fl_datasets\
          --num_classes_dataset 10

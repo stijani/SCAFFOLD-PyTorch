@@ -62,11 +62,11 @@ class CIFARDataset(Dataset):
         # each batch of data by 32.
         #####################################################
 
-        # if self.transform is not None:
-        #     data = self.transform(self.data[index])
+        if self.transform is not None:
+            data = self.transform(self.data[index])
 
-        # if self.target_transform is not None:
-        #     targets = self.target_transform(self.targets[index])
+        if self.target_transform is not None:
+            targets = self.target_transform(self.targets[index])
 
         return data, targets
 

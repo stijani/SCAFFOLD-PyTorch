@@ -16,6 +16,7 @@ from exp_configs import config_test as config
 OUTPUT_DIR = config["exp_output_base"]
 LOG_DIR = os.path.join(config["exp_output_base"],"logs")
 TEMP_DIR = os.path.join(config["exp_output_base"], "temp")
+PRETRAINED_WEIGHTS = "./pretrained_weights/lenet5_init.pt"
 # DATA_DIR = "~/projects/dataset/fl_dataset/cifar10"
 
 
@@ -47,7 +48,7 @@ def clone_parameters(
             }
         )
 
-global_epochs = 100
+global_epochs = 5
 def get_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument("--global_epochs", type=int, default=global_epochs)
@@ -61,13 +62,14 @@ def get_args() -> Namespace:
         default="cifar10",
     )
     parser.add_argument("--global_test_data_dir", type=str, default="/home/stijani/projects/dataset/cifar10")
+    parser.add_argument("--pretrained_weights", type=str, default=PRETRAINED_WEIGHTS)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--valset_ratio", type=float, default=0.1)
     parser.add_argument("--testset_ratio", type=float, default=0.1)
     parser.add_argument("--gpu", type=int, default=2)
     parser.add_argument("--log", type=int, default=0)
     parser.add_argument("--seed", type=int, default=17)
-    parser.add_argument("--client_num_per_round", type=int, default=10)
+    parser.add_argument("--client_num_per_round", type=int, default=1)
     parser.add_argument("--global_test_period", type=int, default=1, help="print the global test results")
     parser.add_argument("--save_period", type=int, default=global_epochs, help="save the aggregated weights after a certain number of comms round")
     return parser.parse_args()

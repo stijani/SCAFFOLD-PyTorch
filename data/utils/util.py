@@ -5,6 +5,8 @@ import sys
 import pickle
 from typing import Dict, List, Tuple, Union
 
+from torch.utils.data import Subset, DataLoader
+
 sys.path.append("./")
 
 #############################################
@@ -53,13 +55,14 @@ def get_dataset(
     with open(pickle_path, "rb") as f:
         subset = pickle.load(f)
     client_dataset = subset[client_id % client_num_in_each_pickles]
-    val_samples_num = int(len(client_dataset) * valset_ratio)
-    test_samples_num = int(len(client_dataset) * testset_ratio)
-    train_samples_num = len(client_dataset) - val_samples_num - test_samples_num
-    trainset, valset, testset = random_split(
-        client_dataset, [train_samples_num, val_samples_num, test_samples_num]
-    )
-    return {"train": trainset, "val": valset, "test": testset}
+    # val_samples_num = int(len(client_dataset) * valset_ratio)
+    # test_samples_num = int(len(client_dataset) * testset_ratio)
+    # train_samples_num = len(client_dataset) - val_samples_num - test_samples_num
+    # trainset, valset, testset = random_split(
+    #     client_dataset, [train_samples_num, val_samples_num, test_samples_num]
+    # )
+    # return {"train": trainset, "val": valset, "test": testset}
+    return client_dataset
 
 
 def get_client_id_indices(

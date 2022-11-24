@@ -5,6 +5,7 @@ from argparse import Namespace
 from collections import OrderedDict
 
 import torch
+from torchvision import transforms
 # from path import Path
 from rich.console import Console
 from rich.progress import track
@@ -34,6 +35,7 @@ from config.util import (
 #sys.path.append(DATA_DIR)
 from client.base import ClientBase
 from data.utils.util import get_client_id_indices
+from data.utils.dataset import CIFARDataset
 
 
 class ServerBase:
@@ -63,20 +65,25 @@ class ServerBase:
         _dummy_model = self.backbone(self.args.dataset).to(self.device)
         passed_epoch = 0
         self.global_params_dict: OrderedDict[str : torch.Tensor] = None
-        if os.listdir(self.temp_dir) != [] and self.args.save_period > 0:
-            # if os.path.exists(self.temp_dir / "global_model.pt"):
-            if os.path.exists(os.path.join(self.temp_dir, "global_model.pt")):
-                self.global_params_dict = torch.load(os.path.join(self.temp_dir, "global_model.pt"))
-                self.logger.log("Find existed global model...")
+        # if os.listdir(self.temp_dir) != [] and self.args.save_period > 0:
+        #     # if os.path.exists(self.temp_dir / "global_model.pt"):
+        #     if os.path.exists(os.path.join(self.temp_dir, "global_model.pt")):
+        #         self.global_params_dict = torch.load(os.path.join(self.temp_dir, "global_model.pt"))
+        #         self.logger.log("Find existed global model...")
 
-            if os.path.exists(os.path.join(self.temp_dir, "epoch.pkl")):
-                with open(os.path.join(self.temp_dir, "epoch.pkl"), "rb") as f:
-                    passed_epoch = pickle.load(f)
-                self.logger.log(f"Have run {passed_epoch} epochs already.",)
-        else:
-            self.global_params_dict = OrderedDict(
-                _dummy_model.state_dict(keep_vars=True)
-            )
+        #     if os.path.exists(os.path.join(self.temp_dir, "epoch.pkl")):
+        #         with open(os.path.join(self.temp_dir, "epoch.pkl"), "rb") as f:
+        #             passed_epoch = pickle.load(f)
+        #         self.logger.log(f"Have run {passed_epoch} epochs already.",)
+        # else:
+            # self.global_params_dict = OrderedDict(
+            #     _dummy_model.state_dict(keep_vars=True)
+            # )
+            # print(self.global_params_dict)
+
+        # load pretrained weights    
+        #_dummy_model.load_state_dict(torch.load(self.args.pretrained_weights))
+        self.global_params_dict = OrderedDict(_dummy_model.state_dict(keep_vars=True))
 
         self.global_epochs = self.args.global_epochs - passed_epoch
         self.logger.log("Backbone:", _dummy_model)
@@ -86,6 +93,10 @@ class ServerBase:
         self.X_global_test, self.y_global_test = self.get_global_test_data()
 
     def train(self):
+        ##########################################################
+        #xx = self.global_params_dict
+        #print("############### BEFORE TRAINING", xx[list(xx.keys())[-1]])
+        ##########################################################
         """
            1. performs local training on each client's data, 
            2. aggregates clients' model weigths and 
@@ -112,16 +123,16 @@ class ServerBase:
             res_cache = []
             for client_id in selected_clients:
                 client_local_params = clone_parameters(self.global_params_dict)
-                res, stats = self.trainer.train(
+                # res, stats = self.trainer.train(
+                res = self.trainer.train(
                     client_id=client_id,
                     model_params=client_local_params,
                     verbose=(E % self.args.verbose_gap) == 0,
                 )
-
                 res_cache.append(res)
-                self.training_acc[E].append(stats["acc_before"])
+                # self.training_acc[E].append(stats["acc_before"])
             self.aggregate(res_cache)
-
+            # self.test_global(1) ####################### delete
             ##############################################################
             # this epoch's training has completed, optional steps
             ##############################################################
@@ -134,13 +145,13 @@ class ServerBase:
                     pickle.dump(E, f) # save the comms round number too
 
     @torch.no_grad()
-    def aggregate(self, res_cache):
+    def aggregate_original(self, res_cache):
         updated_params_cache = list(zip(*res_cache))[0] # list of updated weight dict from each client
         weights_cache = list(zip(*res_cache))[1] # list of the number of data samples each client held (shouldn't have been named weights) 
         weight_sum = sum(weights_cache) # total number of samples across clients
         # weights = torch.tensor(weights_cache, device=self.device) / weight_sum
         weights = torch.tensor(weights_cache, device=self.device).float() / weight_sum # get the proportion of each client weights to be applied in aggragation e.g 0.1 for client 1
-
+        #weights = torch.tensor(weights_cache, device=self.device).float()
         aggregated_params = []
 
         for params in zip(*updated_params_cache): # get the same layer weights for each client
@@ -151,6 +162,49 @@ class ServerBase:
         self.global_params_dict = OrderedDict(
             zip(self.global_params_dict.keys(), aggregated_params)
         )
+
+    @torch.no_grad()
+    def aggregate(self, res_cache):
+        updated_params_cache = list(zip(*res_cache))[0] # list of updated weight dict from each client
+        weights_cache = list(zip(*res_cache))[1] # list of the number of data samples each client held (shouldn't have been named weights) 
+        weight_sum = sum(weights_cache) # total number of samples across clients
+        # weights = torch.tensor(weights_cache, device=self.device) / weight_sum
+        weights = torch.tensor(weights_cache, device=self.device).float() # get the proportion of each client weights to be applied in aggragation e.g 0.1 for client 1
+        #weights = torch.tensor(weights_cache, device=self.device).float()
+        aggregated_params = []
+
+        for params in zip(*updated_params_cache): # get the same layer weights for each client
+            # print("###############", params[0])
+            aggregated_params.append(
+                torch.sum(torch.stack(params, dim=-1), dim=-1) # in parallel apply the weigth fract for wach client and sum the values for this layer
+            )
+
+        # self.global_params_dict = OrderedDict(
+        #     zip(self.global_params_dict.keys(), aggregated_params)
+        # ) 
+        #print("########## AFTER TRAINING & AGGREGATION", self.global_params_dict[list(self.global_params_dict.keys())[-1]])
+
+    # @torch.no_grad()
+    # def aggregate(self, res_cache):
+    #     updated_params_cache = list(zip(*res_cache))[0] # list of updated weight dict from each client
+    #     weights_cache = list(zip(*res_cache))[1] # list of the number of data samples each client held (shouldn't have been named weights) 
+    #     weight_sum = sum(weights_cache) # total number of samples across clients
+    #     # weights = torch.tensor(weights_cache, device=self.device) / weight_sum
+    #     weights = torch.tensor(weights_cache, device=self.device).float() # get the proportion of each client weights to be applied in aggragation e.g 0.1 for client 1
+    #     #weights = torch.tensor(weights_cache, device=self.device).float()
+    #     aggregated_params = []
+
+    #     for params in zip(*updated_params_cache): # get the same layer weights for each client
+    #         result = torch.stack(params, dim=0).sum(dim=0) / 10
+    #         # xx = torch.tensor(np.array(list(params)))
+    #         #print(result)
+
+    #         aggregated_params.append(result) # in parallel apply the weigth fract for wach client and sum the values for this layer
+
+    #     self.global_params_dict = OrderedDict(
+    #         zip(self.global_params_dict.keys(), aggregated_params)
+    #     )
+
 
     # def test(self) -> None:
     #     """
@@ -317,18 +371,27 @@ class ServerBase:
         #loss_global, acc_global = self.trainer.evaluate(self.trainer.global_testset)
         # formated print
         self.logger.log("=" * 30, f"GLOBAL TEST RESULTS AT ROUND: {E}", "=" * 30)
-        X = torch.tensor(self.X_global_test).permute([0, -1, 1, 2]).float() 
+        X = torch.tensor(self.X_global_test).float()#.permute([0, -1, 1, 2]).float() 
         y = torch.tensor(self.y_global_test).long()
         #DataLoader((X, y), 1000) # TODO: change to cmd arg
-        data = TensorDataset(X, y)
+        # data = TensorDataset(X, y)
 
-        stats = self.trainer.test(data,
-                                  clone_parameters(self.global_params_dict),
+        # transform = transforms.Compose(
+        # [transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),])
+        transform = transforms.Compose([])
+        global_params = clone_parameters(self.global_params_dict)
+
+        ############################################
+        #print(global_params[list(global_params.keys())[-1]])
+        ############################################
+        
+        stats = self.trainer.test(CIFARDataset(X, y, transform=transform),
+                                  global_params,
                                   1000
                                   )
-                                  
+
         acc_global, loss_global = stats["acc"], stats["loss"]
-        self.logger.log(f"global_loss: {round(loss_global, 2)} | global_acc:{round(acc_global, 2)}%")
+        self.logger.log(f"global_loss: {loss_global} | global_acc:{acc_global}%")
 
 
     def run(self):

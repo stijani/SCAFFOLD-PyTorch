@@ -50,9 +50,10 @@ def main(args):
     torch.manual_seed(args.seed)
 
     classes_map = None
-    transform = transforms.Compose(
-        [transforms.Normalize(MEAN[args.dataset], STD[args.dataset]),]
-    )
+    # transform = transforms.Compose(
+    #     [transforms.Normalize(MEAN[args.dataset], STD[args.dataset]),]
+    # )
+    transform = transforms.Compose([])
     target_transform = None
 
     if not os.path.isdir(_DATASET_ROOT):
