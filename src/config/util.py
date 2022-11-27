@@ -51,9 +51,10 @@ global_epochs = 100
 def get_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument("--global_epochs", type=int, default=global_epochs)
-    parser.add_argument("--local_epochs", type=int, default=10, help="this is actually the number of localsteps, not epochs")
+    parser.add_argument("--local_epochs", type=int, default=100, help="this is actually the number of localsteps, not epochs")
     parser.add_argument("--local_lr", type=float, default=1e-2)
-    parser.add_argument("--verbose_gap", type=int, default=2)
+    #parser.add_argument("--verbose_gap", type=int, default=2)
+    parser.add_argument("--verbose_gap", type=int, default=100000)
     parser.add_argument(
         "--dataset",
         type=str,
@@ -61,7 +62,7 @@ def get_args() -> Namespace:
         default="cifar10",
     )
     parser.add_argument("--global_test_data_dir", type=str, default="/home/stijani/projects/dataset/cifar10")
-    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--valset_ratio", type=float, default=0.1)
     parser.add_argument("--testset_ratio", type=float, default=0.1)
     parser.add_argument("--gpu", type=int, default=2)

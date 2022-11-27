@@ -85,7 +85,7 @@ class ClientBase:
             # so I couldn't apply mean/std normalization
             # more info in src/data/utils/dataset.py
             # Just dividing each pixel by 255 suffices
-            #x /= 255.0
+            x /= 255.0
             ##################################
             x, y = x.to(self.device), y.to(self.device)
             logits = self.model(x)
@@ -98,7 +98,7 @@ class ClientBase:
             # print("#####################")
             # #print(pred)
             ###############################
-            size_ += y.size(-1)
+            #size_ += y.size(-1)
         #acc = correct / size_ * 100.0
         acc = (correct.float() / size_) * 100.0
         #loss = loss / len(self.testset)
@@ -109,7 +109,8 @@ class ClientBase:
         self,
         client_id: int,
         model_params: OrderedDict[str, torch.Tensor],
-        verbose=True,
+        # verbose=True,
+        verbose=False,
     ) -> Tuple[List[torch.Tensor], int]:
         self.client_id = client_id
         self.set_parameters(model_params)
@@ -134,9 +135,37 @@ class ClientBase:
             loss.backward()
             self.optimizer.step()
         return (
-            list(self.model.state_dict(keep_vars=True).values()),
+            #list(self.model.state_dict(keep_vars=True).values()),
+            list(deepcopy(self.model.state_dict(keep_vars=True)).values()),
             len(self.trainset.dataset),
         )
+
+    # def _train(self):
+    #     model_ = deepcopy(self.model)
+    #     model_.train()
+    #     lst_key = list(model_.state_dict(keep_vars=True).keys())[0]
+    #     #optimizer = torch.optim.SGD(model_.parameters(), lr=1000)
+    #     #print("XXXXXXXXXXXXX", model_.state_dict(keep_vars=True)[lst_key])
+    #     for _ in range(self.local_epochs):
+    #         x, y = self.get_data_batch()
+    #         ##################################
+    #         # I couldn't the transormation to work 
+    #         # so I couldn't apply mean/std normalization
+    #         # more info in src/data/utils/dataset.py
+    #         # Just dividing each pixel by 255 suffices
+    #         x /= 255.0
+    #         ##################################
+    #         logits = model_(x)
+    #         loss = self.criterion(logits, y)
+    #         self.optimizer.zero_grad()
+    #         loss.backward()
+    #         optimizer.step()
+    #     print("YYYYYYYYYYYY", model_.state_dict(keep_vars=True)[lst_key])
+    #     return (
+    #         #list(self.model.state_dict(keep_vars=True).values()),
+    #         list(deepcopy(model_.state_dict(keep_vars=True)).values()),
+    #         len(self.trainset.dataset),
+    #     )
 
     # def test(
     #     self, client_id: int, model_params: OrderedDict[str, torch.Tensor],
