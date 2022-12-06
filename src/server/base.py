@@ -23,17 +23,8 @@ sys.path.append("./src")
 sys.path.append("./data")
 
 from config.models import LeNet5
-from config.util import (
-    # DATA_DIR,
-    LOG_DIR,
-    OUTPUT_DIR,
-    TEMP_DIR,
-    clone_parameters,
-    fix_random_seed,
-)
+from config.util import clone_parameters, fix_random_seed
 
-#sys.path.append(OUTPUT_DIR)
-#sys.path.append(DATA_DIR)
 from client.base import ClientBase
 from data.utils.util import get_client_id_indices
 
@@ -45,27 +36,28 @@ class ServerBase:
         # default log file format
         self.log_name = "{}_{}_{}_{}.html".format(
             self.algo,
-            self.args.dataset,
-            self.args.global_epochs,
-            self.args.local_epochs,
+            self.args["dataset"],
+            self.args["global_epochs"],
+            self.args["local_epochs"],
         )
         self.device = torch.device(
-            "cuda" if self.args.gpu and torch.cuda.is_available() else "cpu"
+            "cuda" if self.args["gpu"] and torch.cuda.is_available() else "cpu"
         )
-        fix_random_seed(self.args.seed)
+        fix_random_seed(self.args["seed"])
         self.backbone = LeNet5
         self.logger = Console(record=True, log_path=False, log_time=False,)
         self.client_id_indices, self.client_num_in_total = get_client_id_indices(
-            self.args.dataset
+            self.args["dataset"],
+            self.args["processed_data_dir"]
         )
-        self.temp_dir = os.path.join(TEMP_DIR, self.algo)
+        self.temp_dir = os.path.join(self.args["tmp_dir"], self.algo)
         if not os.path.isdir(self.temp_dir):
             os.makedirs(self.temp_dir)
 
-        _dummy_model = self.backbone(self.args.dataset).to(self.device)
+        _dummy_model = self.backbone(self.args["dataset"]).to(self.device)
         passed_epoch = 0
         self.global_params_dict: OrderedDict[str : torch.Tensor] = None
-        if os.listdir(self.temp_dir) != [] and self.args.save_period > 0:
+        if os.listdir(self.temp_dir) != [] and self.args["save_period"] > 0:
             # if os.path.exists(self.temp_dir / "global_model.pt"):
             if os.path.exists(os.path.join(self.temp_dir, "global_model.pt")):
                 self.global_params_dict = torch.load(os.path.join(self.temp_dir, "global_model.pt"))
@@ -80,7 +72,7 @@ class ServerBase:
                 _dummy_model.state_dict(keep_vars=True)
             )
 
-        self.global_epochs = self.args.global_epochs - passed_epoch
+        self.global_epochs = self.args["global_epochs"] - passed_epoch
         self.logger.log("Backbone:", _dummy_model)
 
         self.trainer: ClientBase = None # trainer is of type CLientBase, e.g FedAvgClient
@@ -100,7 +92,7 @@ class ServerBase:
                 "[bold green]Training...",
                 console=self.logger,
             )
-            if not self.args.log
+            if not self.args["log"]
             else tqdm(range(self.global_epochs), "Training...")
         )
         for E in progress_bar:
@@ -109,7 +101,7 @@ class ServerBase:
             #     self.logger.log("=" * 30, f"ROUND: {E}", "=" * 30)
 
             selected_clients = random.sample(
-                self.client_id_indices, self.args.client_num_per_round
+                self.client_id_indices, self.args["client_num_per_round"]
             )
             res_cache = []
             for client_id in selected_clients:
@@ -117,17 +109,17 @@ class ServerBase:
                 res, stats = self.trainer.train(
                     client_id=client_id,
                     model_params=client_local_params,
-                    verbose=(E % self.args.verbose_gap) == 0,
+                    verbose=(E % self.args["verbose_gap"]) == 0,
                 )
                 res_cache.append(res)
-                self.training_acc[E].append(stats["acc_before"])
+                self.training_acc[(E - 1)].append(stats["acc_before"])
             self.aggregate(res_cache)
 
             ##############################################################
             # this epoch's training has completed, optional steps, let's test it
             # with the global test data
             ##############################################################
-            if E % self.args.global_test_period == 0:
+            if E % self.args["global_test_period"] == 0:
                 acc_, loss_ = self.test_global(E) # test current global model on the global test dataset
                 train_acc.append(acc_)
                 train_loss.append(loss_)
@@ -178,7 +170,7 @@ class ServerBase:
             self.client_id_indices,
             "[bold blue]Testing...",
             console=self.logger,
-            disable=self.args.log,
+            disable=self.args["log"],
         ):
             client_local_params = clone_parameters(self.global_params_dict) # setting the client's model state to the current global model state
             
@@ -245,8 +237,8 @@ class ServerBase:
                 epoch_to_50 = E
 
     def get_global_test_data(self):
-        X_test = np.load(f"{self.args.global_test_data_dir}/test_features.npy")
-        y_test = np.load(f"{self.args.global_test_data_dir}/test_labels.npy")
+        X_test = np.load(f'{self.args["global_test_data_dir"]}/test_features.npy')
+        y_test = np.load(f'{self.args["global_test_data_dir"]}/test_labels.npy')
         return X_test, y_test
 
 
@@ -316,13 +308,14 @@ class ServerBase:
 
     
     def run(self):
-        self.logger.log("Arguments:", dict(self.args._get_kwargs()))
+        # self.logger.log("Arguments:", dict(self.args._get_kwargs()))
+        self.logger.log("Arguments:", self.args)
         self.train()
         # self.test()
-        if self.args.log:
-            if not os.path.isdir(LOG_DIR):
-                os.mkdir(LOG_DIR)
-            self.logger.save_html(LOG_DIR / self.log_name)
+        if self.args["log"]:
+            if not os.path.isdir(self.args["log_dir"]):
+                os.mkdir(self.args["log_dir"])
+            self.logger.save_html(self.args["log_dir"] / self.log_name)
 
         # delete all temporary files
         if os.listdir(self.temp_dir) != []:

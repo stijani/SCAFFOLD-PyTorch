@@ -14,20 +14,24 @@ For NIID - 1, 2, 5 e.t.c partitioning, like in fedshare
     1. set dirichlet factor (alpha) to 0
     2. set classes (number of labels per client) to the NIID value e.g 1
     3. set the client_num_in_total to the total number clients required
-    4. set fraction to the number clients per round
+    4. set fraction to the number clients per round. Should always be set to 1. The real fraction is set in training as C
+    5. set num_classes_dataset to the number of classes in the dataset
+    6. iid-client-100 - directory to save the dataset
     5. example:
+
         python ./data/utils/run.py\
          --dataset cifar10\
          --alpha 0\
-         --client_num_in_total 10\
-         --fraction 0.5\
-         --classes 10\
-         --seed 14\
+         --distribution iid-client-100\
+         --client_num_in_total 100\
+         --fraction 1\
+         --classes -1\
+         --seed 17\
          --emnist_split byclass\
          --type user\
          --client_num_in_each_pickles 10\
-         --root ../../dataset/fl_datasets\
-         --num_classes_dataset 10
+         --root ../../dataset/fl-datasets\
+         --num_classes_dataset 10 
 
 For Dirichlet partitioning, like in other papers
     1. set alpha to the degree of heterogeneity, 1 is the most extreme
@@ -37,7 +41,7 @@ For Dirichlet partitioning, like in other papers
          --dataset cifar10\
          --alpha 1\
          --client_num_in_total 10\
-         --fraction 0.5\
+         --fraction 1\
          --classes -1\
          --seed 14\
          --emnist_split byclass\

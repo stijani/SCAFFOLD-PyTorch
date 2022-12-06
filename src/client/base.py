@@ -23,6 +23,7 @@ class ClientBase:
         self,
         backbone: torch.nn.Module,
         dataset: str,
+        processed_data_dir,
         batch_size: int,
         valset_ratio: float,
         testset_ratio: float,
@@ -43,6 +44,7 @@ class ClientBase:
             self.model.parameters(), lr=local_lr
         )
         self.dataset = dataset
+        self.processed_data_dir = processed_data_dir
         self.batch_size = batch_size
         self.valset_ratio = valset_ratio
         self.testset_ratio = testset_ratio
@@ -92,16 +94,9 @@ class ClientBase:
             loss += self.criterion(logits, y)
             pred = torch.softmax(logits, -1).argmax(-1)
             correct += (pred == y).int().sum()
-            #############################
-            # print(pred)
-            # print(y)
-            # print("#####################")
-            # #print(pred)
-            ###############################
-            #size_ += y.size(-1)
-        #acc = correct / size_ * 100.0
         acc = (correct.float() / size_) * 100.0
-        #loss = loss / len(self.testset)
+        # print("GGGGGGGGGGGGGGGGGGG", size_)
+        # acc = (correct / size_) * 100.0
         loss = loss / size_
         return loss.item(), acc.item()
 
@@ -109,13 +104,12 @@ class ClientBase:
         self,
         client_id: int,
         model_params: OrderedDict[str, torch.Tensor],
-        # verbose=True,
-        verbose=False,
+        verbose=True,
     ) -> Tuple[List[torch.Tensor], int]:
         self.client_id = client_id
         self.set_parameters(model_params)
         self.get_client_local_dataset()
-        res, stats = self._log_while_training(evaluate=True, verbose=verbose)()
+        res, stats = self._log_while_training(evaluate=False, verbose=verbose)()
         return res, stats
 
     def _train(self):
@@ -190,6 +184,7 @@ class ClientBase:
     def get_client_local_dataset(self):
         datasets = get_dataset(
             self.dataset,
+            self.processed_data_dir,
             self.client_id,
             self.batch_size,
             self.valset_ratio,
@@ -235,7 +230,7 @@ class ClientBase:
     #     return _log_and_train
 
 
-    def _log_while_training(self, evaluate=True, verbose=False):
+    def _log_while_training(self, evaluate=False, verbose=False):
         def _log_and_train(*args, **kwargs):
             loss_before = 0
             loss_after = 0

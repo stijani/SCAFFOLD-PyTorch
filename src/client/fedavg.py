@@ -9,6 +9,7 @@ class FedAvgClient(ClientBase):
         self,
         backbone: torch.nn.Module,
         dataset: str,
+        processed_data_dir: str,
         batch_size: int,
         valset_ratio: float,
         testset_ratio: float,
@@ -20,6 +21,7 @@ class FedAvgClient(ClientBase):
         super(FedAvgClient, self).__init__(
             backbone,
             dataset,
+            processed_data_dir,
             batch_size,
             valset_ratio,
             testset_ratio,

@@ -43,7 +43,8 @@ def main(args):
     _DATASET_ROOT = os.path.join(args.root, args.dataset)
 
     # _PICKLES_DIR = _CURRENT_DIR.parent / args.dataset / "pickles"
-    _PICKLES_DIR = os.path.join(_DATASET_ROOT, "pickles")
+    #_PICKLES_DIR = os.path.join(_DATASET_ROOT, "pickles")
+    _PICKLES_DIR = os.path.join(_DATASET_ROOT, args.distribution, "pickles")
 
     np.random.seed(args.seed)
     random.seed(args.seed)
@@ -56,7 +57,8 @@ def main(args):
     target_transform = None
 
     if not os.path.isdir(_DATASET_ROOT):
-        os.mkdir(_DATASET_ROOT)
+        #os.mkdir(_DATASET_ROOT)
+        os.makedirs(_DATASET_ROOT)
     if os.path.isdir(_PICKLES_DIR):
         os.system(f"rm -rf {_PICKLES_DIR}")
     os.system(f"mkdir -p {_PICKLES_DIR}")
@@ -80,8 +82,9 @@ def main(args):
         )
     else:
         trainset = ori_dataset(_DATASET_ROOT, train=True, download=True,)
-        testset = ori_dataset(_DATASET_ROOT, train=False,)
-    concat_datasets = [trainset, testset]
+        # testset = ori_dataset(_DATASET_ROOT, train=False,)
+    # concat_datasets = [trainset, testset]
+    concat_datasets = [trainset] # NOTE: I removed the test set from client training data
     if args.alpha > 0:  # NOTE: Dirichlet(alpha)
         all_datasets, stats = dirichlet_distribution(
             ori_dataset=concat_datasets,
@@ -135,7 +138,7 @@ def main(args):
         )
 
         # with open(_CURRENT_DIR.parent / args.dataset / "all_stats.json", "w") as f:
-        with open(os.path.join(_DATASET_ROOT, "all_stats.json"), "w") as f:
+        with open(os.path.join(_DATASET_ROOT, args.distribution, "all_stats.json"), "w") as f:
             json.dump({"train": train_clients_stats, "test": test_clients_stats}, f)
 
     else:  # NOTE: "sample"  save stats
@@ -146,7 +149,7 @@ def main(args):
                 {"id": client_id_indices, "total": client_num_in_total,}, f,
             )
         # with open(_CURRENT_DIR.parent / args.dataset / "all_stats.json", "w") as f:
-        with open(os.path.join(_DATASET_ROOT, "all_stats.json"), "w") as f:
+        with open(os.path.join(_DATASET_ROOT, args.distribution, "all_stats.json"), "w") as f:
             json.dump(stats, f)
 
     # args.root = (
@@ -199,13 +202,23 @@ if __name__ == "__main__":
     )
     #######################################################
     parser.add_argument(
-        "--type", type=str, choices=["sample", "user"], default="sample"
+        "--type", 
+        type=str, 
+        choices=["sample", "user"], 
+        default="sample"
     )
+
+    parser.add_argument(
+        "--distribution", 
+        type=str, 
+        default="niid-1-clients-10"
+    )
+
     parser.add_argument("--client_num_in_each_pickles", type=int, default=10)
     parser.add_argument("--root", type=str, default=None)
     args = parser.parse_args()
     main(args)
     args_dict = dict(args._get_kwargs())
     # with open(_CURRENT_DIR.parent / "args.json", "w") as f:
-    with open(os.path.join(os.path.join(args.root, args.dataset), "args.json"), "w") as f:
+    with open(os.path.join(os.path.join(args.root, args.dataset), args.distribution, "args.json"), "w") as f:
         json.dump(args_dict, f)
