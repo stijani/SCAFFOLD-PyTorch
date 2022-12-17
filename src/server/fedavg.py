@@ -21,7 +21,7 @@ class FedAvgServer(ServerBase):
     def __init__(self):
         super(FedAvgServer, self).__init__(config, "FedAvg")
         self.trainer = FedAvgClient(
-            backbone=self.backbone(self.args["dataset"]),
+            backbone=self.backbone,
             dataset=self.args["dataset"],
             processed_data_dir = self.args["processed_data_dir"],
             batch_size=self.args["batch_size"],
@@ -29,6 +29,7 @@ class FedAvgServer(ServerBase):
             testset_ratio=self.args["testset_ratio"],
             local_epochs=self.args["local_epochs"],
             local_lr=self.args["local_lr"],
+            momentum=self.args["momentum"],
             logger=self.logger,
             gpu=self.args["gpu"],
         )

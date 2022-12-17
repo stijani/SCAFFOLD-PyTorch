@@ -29,6 +29,7 @@ class ClientBase:
         testset_ratio: float,
         local_epochs: int,
         local_lr: float,
+        momentum: float,
         logger: Console,
         gpu: int,
     ):
@@ -40,9 +41,9 @@ class ClientBase:
         self.trainset: Subset = None
         self.testset: Subset = None
         self.model: torch.nn.Module = deepcopy(backbone).to(self.device)
-        self.optimizer: torch.optim.Optimizer = torch.optim.SGD(
-            self.model.parameters(), lr=local_lr
-        )
+        # self.optimizer: torch.optim.Optimizer = torch.optim.SGD(
+        #     self.model.parameters(), lr=local_lr
+        # )
         self.dataset = dataset
         self.processed_data_dir = processed_data_dir
         self.batch_size = batch_size
@@ -50,9 +51,11 @@ class ClientBase:
         self.testset_ratio = testset_ratio
         self.local_epochs = local_epochs
         self.local_lr = local_lr
+        self.momentum = momentum
         self.criterion = torch.nn.CrossEntropyLoss()
         self.logger = logger
         self.untrainable_params: Dict[str, Dict[str, torch.Tensor]] = {}
+        self.optimizer: torch.optim.Optimizer = self.get_optimizer()
 
     # @torch.no_grad()
     # def evaluate(self, use_valset=True):
@@ -72,6 +75,12 @@ class ClientBase:
     #     acc = correct.float() / size * 100.0
     #     loss = loss / len(self.testset)
     #     return loss.item(), acc.item()
+
+    def get_optimizer(self):
+        if self.momentum:
+            return torch.optim.SGD(self.model.parameters(), lr=self.local_lr, momentum=self.momentum)
+        else:
+            return torch.optim.SGD(self.model.parameters(), lr=local_lr)
 
     @torch.no_grad()
     def evaluate(self, data, bs=32): # TODO: add type anno for data
@@ -193,42 +202,6 @@ class ClientBase:
         self.trainset = datasets["train"]
         self.valset = datasets["val"]
         self.testset = datasets["test"]
-
-
-    # def _log_while_training(self, evaluate=True, verbose=False):
-    #     def _log_and_train(*args, **kwargs):
-    #         loss_before = 0
-    #         loss_after = 0
-    #         acc_before = 0
-    #         acc_after = 0
-    #         if evaluate:
-    #             # first evaluate with the recieved global weights prior to training
-    #             loss_before, acc_before = self.evaluate()
-
-    #         # carryout local training
-    #         res = self._train(*args, **kwargs)
-
-    #         if evaluate:
-    #             # carryout evaluation after local training - using the local weights
-    #             loss_after, acc_after = self.evaluate()
-
-    #         if verbose:
-    #             self.logger.log(
-    #                 "client [{}]   [bold red]loss: {:.4f} -> {:.4f}    [bold blue]accuracy: {:.2f}% -> {:.2f}%".format(
-    #                     self.client_id, loss_before, loss_after, acc_before, acc_after
-    #                 )
-    #             )
-
-    #         stats = {
-    #             "loss_before": loss_before,
-    #             "loss_after": loss_after,
-    #             "acc_before": acc_before,
-    #             "acc_after": acc_after,
-    #         }
-    #         return res, stats
-
-    #     return _log_and_train
-
 
     def _log_while_training(self, evaluate=False, verbose=False):
         def _log_and_train(*args, **kwargs):

@@ -15,6 +15,7 @@ class FedAvgClient(ClientBase):
         testset_ratio: float,
         local_epochs: int,
         local_lr: float,
+        momentum: float,
         logger: Console,
         gpu: int,
     ):
@@ -27,6 +28,7 @@ class FedAvgClient(ClientBase):
             testset_ratio,
             local_epochs,
             local_lr,
+            momentum,
             logger,
             gpu,
         )

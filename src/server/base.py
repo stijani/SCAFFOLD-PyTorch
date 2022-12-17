@@ -34,17 +34,19 @@ class ServerBase:
         self.algo = algo
         self.args = args
         # default log file format
-        self.log_name = "{}_{}_{}_{}.html".format(
+        self.log_name = "{}_{}_{}_{}_{}.html".format(
             self.algo,
             self.args["dataset"],
             self.args["global_epochs"],
             self.args["local_epochs"],
+            self.args["momentum"],
         )
         self.device = torch.device(
             "cuda" if self.args["gpu"] and torch.cuda.is_available() else "cpu"
         )
         fix_random_seed(self.args["seed"])
-        self.backbone = LeNet5
+        #self.backbone = LeNet5
+        self.backbone = LeNet5()
         self.logger = Console(record=True, log_path=False, log_time=False,)
         self.client_id_indices, self.client_num_in_total = get_client_id_indices(
             self.args["dataset"],
@@ -54,7 +56,8 @@ class ServerBase:
         if not os.path.isdir(self.temp_dir):
             os.makedirs(self.temp_dir)
 
-        _dummy_model = self.backbone(self.args["dataset"]).to(self.device)
+        # _dummy_model = self.backbone(self.args["dataset"]).to(self.device)
+        _dummy_model = self.backbone.to(self.device)
         passed_epoch = 0
         self.global_params_dict: OrderedDict[str : torch.Tensor] = None
         if os.listdir(self.temp_dir) != [] and self.args["save_period"] > 0:
@@ -86,6 +89,9 @@ class ServerBase:
            3. saves the aggregated weigths periodically
         """
         train_acc, train_loss = [], []
+        train_acc.append(self.args["metric_filename"])
+        train_loss.append(self.args["metric_filename"])
+
         progress_bar = (
             track(
                 range(self.global_epochs),
@@ -97,9 +103,6 @@ class ServerBase:
         )
         for E in progress_bar:
             E += 1
-            # if E % self.args.verbose_gap == 0:
-            #     self.logger.log("=" * 30, f"ROUND: {E}", "=" * 30)
-
             selected_clients = random.sample(
                 self.client_id_indices, self.args["client_num_per_round"]
             )
@@ -115,23 +118,23 @@ class ServerBase:
                 self.training_acc[(E - 1)].append(stats["acc_before"])
             self.aggregate(res_cache)
 
-            ##############################################################
-            # this epoch's training has completed, optional steps, let's test it
-            # with the global test data
-            ##############################################################
+            # this epoch's training has completed, let's test it with the global test data
             if E % self.args["global_test_period"] == 0:
                 acc_, loss_ = self.test_global(E) # test current global model on the global test dataset
                 train_acc.append(acc_)
                 train_loss.append(loss_)
-        
-        # # export results
-        # config['filename_acc'] = exp_dir + f"/{config['dataset_name']}/{niid}/final_results/acc/clients-{clients}-frac-{frac}-fixed-prev-grads.csv"
-        # config['filename_loss'] = exp_dir + f"/{config['dataset_name']}/{niid}/final_results/loss/clients-{clients}-frac-{frac}-fixed-prev-grads.csv"
-        # with open(self.args.metric_file_acc, 'a') as f, open(self.args.metric_file_loss, 'a') as g:
-        #     writer1 = csv.writer(f)
-        #     writer2 = csv.writer(g)
-        #     writer1.writerow(train_acc)
-        #     writer2.writerow(train_loss)
+
+        # create the metric directories
+        metric_dir_acc = os.path.join(self.args["metric_file_dir"], "acc")
+        metric_dir_loss = os.path.join(self.args["metric_file_dir"], "loss")
+        os.makedirs(metric_dir_acc, exist_ok = True)
+        os.makedirs(metric_dir_loss, exist_ok = True)
+        # export results
+        with open(os.path.join(metric_dir_acc, self.args["metric_filename"]), 'a') as f, open(os.path.join(metric_dir_loss, self.args["metric_filename"]), 'a') as g:
+            writer1 = csv.writer(f)
+            writer2 = csv.writer(g)
+            writer1.writerow(train_acc)
+            writer2.writerow(train_loss)
             # if E % self.args.save_period == 0:
             #     torch.save(self.global_params_dict, os.path.join(self.temp_dir, "global_model.pt"))
             #     with open(os.path.join(self.temp_dir, "epoch.pkl"), "wb") as f:
@@ -140,22 +143,21 @@ class ServerBase:
     @torch.no_grad()
     def aggregate(self, res_cache):
         updated_params_cache = list(zip(*res_cache))[0] # list of updated weight dict from each client
-        #print("YYYYYYYYYYYYYY", [list(i[-1].cpu().numpy())[0] for i in updated_params_cache])
         weights_cache = list(zip(*res_cache))[1] # list of the number of data samples each client held (shouldn't have been named weights) 
         weight_sum = sum(weights_cache) # total number of samples across clients
-        # weights = torch.tensor(weights_cache, device=self.device) / weight_sum
         weights = torch.tensor(weights_cache, device=self.device).float() / weight_sum # get the proportion of each client weights to be applied in aggragation e.g 0.1 for client 1
         aggregated_params = []
 
         for params in zip(*updated_params_cache): # get the same layer weights for each client
             aggregated_params.append(
                 torch.sum(weights * torch.stack(params, dim=-1), dim=-1) # in parallel apply the weigth fract for wach client and sum the values for this layer
-                #torch.sum(1 * torch.stack(params, dim=-1), dim=-1)
+                # torch.sum(0.1 * torch.stack(params, dim=-1), dim=-1)
             )
 
         self.global_params_dict = OrderedDict(
             zip(self.global_params_dict.keys(), aggregated_params)
         )
+
 
     def test(self, use_valset: bool=True) -> None:
         """
@@ -257,54 +259,8 @@ class ServerBase:
                                   
         acc_global, loss_global = stats["acc"], stats["loss"]
 
-        self.logger.log(f"global round: {E} || global acc: {round(acc_global, 2)}% || global loss: {loss_global}")
+        self.logger.log(f"global round: {E}    || global acc: {round(acc_global, 2)}%    || global loss: {loss_global}")
         return acc_global, loss_global
-
-    # def test_global_(self, E):
-    #     """TODO: write doc string
-    #     """
-    #     #loss_global, acc_global = self.trainer.evaluate(self.trainer.global_testset)
-    #     # formated print
-    #     self.logger.log("=" * 30, f"GLOBAL TEST RESULTS AT ROUND: {E}", "=" * 30)
-    #     X = torch.tensor(self.X_global_test).permute([0, -1, 1, 2]).float() 
-    #     y = torch.tensor(self.y_global_test).long()
-    #     #DataLoader((X, y), 1000) # TODO: change to cmd arg
-    #     data = TensorDataset(X, y)
-
-    #     # stats = self.trainer.test(data,
-    #     #                           clone_parameters(self.global_params_dict),
-    #     #                           1000
-    #     #                           )
-
-    #     dataloader = DataLoader(data, 1000) 
-    #     loss = 0
-    #     correct = 0
-    #     size_ = len(data)
-
-    #     global_model = deepcopy(self.trainer.model)
-    #     global_model.load_state_dict(self.global_params_dict)
-    #     #print(self.global_params_dict) ###################
-    #     global_model.eval()
-    #     for x, y in dataloader:
-    #         ##################################
-    #         # I couldn't the transormation to work 
-    #         # so I couldn't apply mean/std normalization
-    #         # more info in src/data/utils/dataset.py
-    #         # Just dividing each pixel by 255 suffices
-    #         x /= 255.0
-    #         ##################################
-    #         x, y = x.to(self.device), y.to(self.device)
-    #         logits = global_model(x)
-    #         loss += self.trainer.criterion(logits, y)
-    #         pred = torch.softmax(logits, -1).argmax(-1)
-    #         correct += (pred == y).int().sum()
-    #     acc = (correct.float() / size_) * 100.0
-    #     #loss = loss / len(self.testset)
-    #     loss = loss / size_
-
-    #     acc_global, loss_global = acc, loss
-    #     self.logger.log(f"global_loss: {loss_global} | global_acc:{acc_global}%")
-
 
     
     def run(self):
