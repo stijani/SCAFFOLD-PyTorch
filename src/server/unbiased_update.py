@@ -22,7 +22,6 @@ class UnbiasedUpdate(ServerBase):
     def __init__(self):
         super(UnbiasedUpdate, self).__init__(config, "FedAvg")
         self.trainer = UnbiasedUpdateClient(
-            ########***backbone=self.backbone(self.args["dataset"]),
             backbone=self.backbone,
             dataset=self.args["dataset"],
             processed_data_dir = self.args["processed_data_dir"],

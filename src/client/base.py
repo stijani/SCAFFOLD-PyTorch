@@ -4,17 +4,10 @@ from typing import Dict, List, OrderedDict, Tuple
 
 import torch
 import numpy as np
-# from path import Path
 from rich.console import Console
 from torch.utils.data import Subset, DataLoader
-
-#_CURRENT_DIR = Path(__file__).parent.abspath()
-
 import sys
-
-# sys.path.append(_CURRENT_DIR.parent)
 sys.path.append("./")
-
 from data.utils.util import get_dataset
 
 
@@ -41,9 +34,6 @@ class ClientBase:
         self.trainset: Subset = None
         self.testset: Subset = None
         self.model: torch.nn.Module = deepcopy(backbone).to(self.device)
-        # self.optimizer: torch.optim.Optimizer = torch.optim.SGD(
-        #     self.model.parameters(), lr=local_lr
-        # )
         self.dataset = dataset
         self.processed_data_dir = processed_data_dir
         self.batch_size = batch_size
@@ -57,24 +47,6 @@ class ClientBase:
         self.untrainable_params: Dict[str, Dict[str, torch.Tensor]] = {}
         self.optimizer: torch.optim.Optimizer = self.get_optimizer()
 
-    # @torch.no_grad()
-    # def evaluate(self, use_valset=True):
-    #     self.model.eval()
-    #     size = 0
-    #     loss = 0
-    #     correct = 0
-    #     dataloader = DataLoader(self.valset if use_valset else self.testset, 32)
-    #     for x, y in dataloader:
-    #         x, y = x.to(self.device), y.to(self.device)
-    #         logits = self.model(x)
-    #         loss += self.criterion(logits, y)
-    #         pred = torch.softmax(logits, -1).argmax(-1)
-    #         correct += (pred == y).int().sum()
-    #         size += y.size(-1)
-    #     # acc = correct / size * 100.0
-    #     acc = correct.float() / size * 100.0
-    #     loss = loss / len(self.testset)
-    #     return loss.item(), acc.item()
 
     def get_optimizer(self):
         if self.momentum:
@@ -104,8 +76,6 @@ class ClientBase:
             pred = torch.softmax(logits, -1).argmax(-1)
             correct += (pred == y).int().sum()
         acc = (correct.float() / size_) * 100.0
-        # print("GGGGGGGGGGGGGGGGGGG", size_)
-        # acc = (correct / size_) * 100.0
         loss = loss / size_
         return loss.item(), acc.item()
 
@@ -142,45 +112,7 @@ class ClientBase:
             list(deepcopy(self.model.state_dict(keep_vars=True)).values()),
             len(self.trainset.dataset),
         )
-
-    # def _train(self):
-    #     model_ = deepcopy(self.model)
-    #     model_.train()
-    #     lst_key = list(model_.state_dict(keep_vars=True).keys())[0]
-    #     #optimizer = torch.optim.SGD(model_.parameters(), lr=1000)
-    #     #print("XXXXXXXXXXXXX", model_.state_dict(keep_vars=True)[lst_key])
-    #     for _ in range(self.local_epochs):
-    #         x, y = self.get_data_batch()
-    #         ##################################
-    #         # I couldn't the transormation to work 
-    #         # so I couldn't apply mean/std normalization
-    #         # more info in src/data/utils/dataset.py
-    #         # Just dividing each pixel by 255 suffices
-    #         x /= 255.0
-    #         ##################################
-    #         logits = model_(x)
-    #         loss = self.criterion(logits, y)
-    #         self.optimizer.zero_grad()
-    #         loss.backward()
-    #         optimizer.step()
-    #     print("YYYYYYYYYYYY", model_.state_dict(keep_vars=True)[lst_key])
-    #     return (
-    #         #list(self.model.state_dict(keep_vars=True).values()),
-    #         list(deepcopy(model_.state_dict(keep_vars=True)).values()),
-    #         len(self.trainset.dataset),
-    #     )
-
-    # def test(
-    #     self, client_id: int, model_params: OrderedDict[str, torch.Tensor],
-    # ):
-    #     self.client_id = client_id
-    #     self.set_parameters(model_params)
-    #     self.get_client_local_dataset()
-    #     loss, acc = self.evaluate()
-    #     stats = {"loss": loss, "acc": acc}
-    #     return stats
-
-    
+   
     def test(
         self, data, model_params: OrderedDict[str, torch.Tensor], bs=32): 
         # TODO: add type anno for data

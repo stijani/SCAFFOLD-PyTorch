@@ -37,8 +37,6 @@ class UnbiasedUpdateClient(ClientBase):
             momentum,
             logger,
             gpu,
-            # beta,
-            # batch_size_unbiased_step
         )
         self.trainable_global_params: List[torch.Tensor] = None
         self.beta = beta
@@ -46,16 +44,13 @@ class UnbiasedUpdateClient(ClientBase):
         #self.mu = 1.0
 
     def unbiased_step(self, model):
-        #opt = torch.optim.SGD(model.parameters(), lr=0.01)
         model.train()
         x, y = self.get_data_batch_unbiased()
         x /= 255.0
         logits = model(x)
         loss = self.criterion(logits, y)
-        #opt.zero_grad()
         model.zero_grad()
         loss.backward()
-        #opt.step() # TODO: remove, makes no difference as we only need grad
         return model
 
     def _train(self):
@@ -77,14 +72,12 @@ class UnbiasedUpdateClient(ClientBase):
                 new_params_grads = {} # TODO: not used, remove
                 for layer_name, layer_param in zip(layer_names, self.model.parameters()):
                     layer_grad = self.beta * unbiased_grads[layer_name] + (1 - self.beta) * layer_param.grad
-                    new_layer_params = layer_param - layer_grad * self.local_lr  # TODO: remove hard coded lr
+                    new_layer_params = layer_param - layer_grad * self.local_lr
                     new_params_dict[layer_name] = new_layer_params
                     new_params_grads[layer_name] = layer_grad ######
             self.model.load_state_dict(new_params_dict)
         return (
             list(deepcopy(self.model.state_dict(keep_vars=True)).values()),
-            #list(deepcopy(self.model.parameters())),
-            #trained_params,
             len(self.trainset.dataset),
         )
 
@@ -108,15 +101,6 @@ class UnbiasedUpdateClient(ClientBase):
         data, targets = self.trainset.dataset[indices]
         return data.to(self.device), targets.to(self.device)
 
-
-    # def set_parameters(
-    #     self, model_params: OrderedDict[str, torch.Tensor],
-    # ):
-    #     super().set_parameters(model_params)
-    #     self.trainable_global_params = list(
-    #         filter(lambda p: p.requires_grad, model_params.values())
-    #     )
-
     def get_parameter_grads(self, model_):
         """
         Extracts the gradients of the parameters in each of the layers of a model
@@ -128,7 +112,6 @@ class UnbiasedUpdateClient(ClientBase):
         layer_names = model_.state_dict().keys()
         with torch.no_grad():
             for name, layer_param in zip(layer_names, model_.parameters()):
-                #print("XyXXXXXXXXXXXX", name, layer_param.grad) 
                 grad_dict[name] = deepcopy(layer_param.grad)
         return deepcopy(grad_dict)
 

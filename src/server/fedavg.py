@@ -1,6 +1,5 @@
 from base import ServerBase
 from client.fedavg import FedAvgClient
-#from config.util import get_args
 from config.options import CONFIG_CIFAR10, CONFIG_MNIST
 import argparse
 
