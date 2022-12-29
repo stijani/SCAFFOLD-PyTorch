@@ -13,6 +13,7 @@ from rich.progress import track
 from tqdm import tqdm
 import numpy as np
 from torch.utils.data import DataLoader, TensorDataset # TODO: cleanup
+import json
 
 #_CURRENT_DIR = Path(__file__).parent.abspath()
 
@@ -42,7 +43,7 @@ class ServerBase:
             self.args["momentum"],
         )
         self.device = torch.device(
-            "cuda" if self.args["gpu"] and torch.cuda.is_available() else "cpu"
+            f"cuda:{self.args['gpu']}" if self.args["gpu"] and torch.cuda.is_available() else "cpu"
         )
         fix_random_seed(self.args["seed"])
         #self.backbone = LeNet5
@@ -60,20 +61,21 @@ class ServerBase:
         _dummy_model = self.backbone.to(self.device)
         passed_epoch = 0
         self.global_params_dict: OrderedDict[str : torch.Tensor] = None
-        if os.listdir(self.temp_dir) != [] and self.args["save_period"] > 0:
+        #if os.listdir(self.temp_dir) != [] and self.args["save_period"] > 0:
             # if os.path.exists(self.temp_dir / "global_model.pt"):
-            if os.path.exists(os.path.join(self.temp_dir, "global_model.pt")):
-                self.global_params_dict = torch.load(os.path.join(self.temp_dir, "global_model.pt"))
-                self.logger.log("Find existed global model...")
+            # if os.path.exists(os.path.join(self.temp_dir, "global_model.pt")):
+            #     self.global_params_dict = torch.load(os.path.join(self.temp_dir, "global_model.pt"))
+            #     self.logger.log("Find existed global model...")
 
-            if os.path.exists(os.path.join(self.temp_dir, "epoch.pkl")):
-                with open(os.path.join(self.temp_dir, "epoch.pkl"), "rb") as f:
-                    passed_epoch = pickle.load(f)
-                self.logger.log(f"Have run {passed_epoch} epochs already.",)
-        else:
-            self.global_params_dict = OrderedDict(
-                _dummy_model.state_dict(keep_vars=True)
-            )
+            # if os.path.exists(os.path.join(self.temp_dir, "epoch.pkl")):
+            #     with open(os.path.join(self.temp_dir, "epoch.pkl"), "rb") as f:
+            #         passed_epoch = pickle.load(f)
+            #     self.logger.log(f"Have run {passed_epoch} epochs already.",)
+        if self.args["init_weigth_file"]:
+            _dummy_model.load_state_dict(torch.load(self.args["init_weigth_file"]))
+            #self.global_params_dict = torch.load(self.args["init_weigth_file"])
+            #self.global_params_dict.to(self.device)
+        self.global_params_dict = OrderedDict(_dummy_model.state_dict(keep_vars=True))
 
         self.global_epochs = self.args["global_epochs"] - passed_epoch
         self.logger.log("Backbone:", _dummy_model)
@@ -88,9 +90,8 @@ class ServerBase:
            2. aggregates clients' model weigths and 
            3. saves the aggregated weigths periodically
         """
-        train_acc, train_loss = [], []
-        train_acc.append(self.args["metric_filename"])
-        train_loss.append(self.args["metric_filename"])
+        params = json.dumps(self.args)
+        train_acc, train_loss = [params], [params]
 
         progress_bar = (
             track(
@@ -123,22 +124,23 @@ class ServerBase:
                 acc_, loss_ = self.test_global(E) # test current global model on the global test dataset
                 train_acc.append(acc_)
                 train_loss.append(loss_)
-
+                
+            # decay the lr if applicable at this step
+            if self.trainer.lr_schedule_rate:
+                self.trainer.scheduler.step()
         # create the metric directories
         metric_dir_acc = os.path.join(self.args["metric_file_dir"], "acc")
         metric_dir_loss = os.path.join(self.args["metric_file_dir"], "loss")
         os.makedirs(metric_dir_acc, exist_ok = True)
         os.makedirs(metric_dir_loss, exist_ok = True)
+
         # export results
         with open(os.path.join(metric_dir_acc, self.args["metric_filename"]), 'a') as f, open(os.path.join(metric_dir_loss, self.args["metric_filename"]), 'a') as g:
             writer1 = csv.writer(f)
             writer2 = csv.writer(g)
             writer1.writerow(train_acc)
             writer2.writerow(train_loss)
-            # if E % self.args.save_period == 0:
-            #     torch.save(self.global_params_dict, os.path.join(self.temp_dir, "global_model.pt"))
-            #     with open(os.path.join(self.temp_dir, "epoch.pkl"), "wb") as f:
-            #         pickle.dump(E, f) # save the comms round number too
+
 
     @torch.no_grad()
     def aggregate(self, res_cache):
@@ -157,6 +159,7 @@ class ServerBase:
         self.global_params_dict = OrderedDict(
             zip(self.global_params_dict.keys(), aggregated_params)
         )
+        #print(self.global_params_dict)
 
 
     def test(self, use_valset: bool=True) -> None:
@@ -262,17 +265,26 @@ class ServerBase:
         self.logger.log(f"global round: {E}    || global acc: {round(acc_global, 2)}%    || global loss: {loss_global}")
         return acc_global, loss_global
 
+
+    def hyperparam_tunning(self, tunable_params_vs_values):
+        exp_name = self.args['exp_name']
+        for tunable_param, values in tunable_params_vs_values.items():
+            for value in values:
+                self.args[tunable_param] = value
+                self.args["exp_name"] = f"{exp_name}_{tunable_param}: {value}"
+                self.train()
+                # reset the global model
+                if self.args["init_weigth_file"]:
+                    #self.global_params_dict = torch.load(self.args["init_weigth_file"]).to(self.device)
+                     _dummy_model.load_state_dict(torch.load(self.args["init_weigth_file"]))
+                _dummy_model = self.backbone.to(self.device)
+                self.global_params_dict = OrderedDict(_dummy_model.state_dict(keep_vars=True))
+
     
     def run(self):
         # self.logger.log("Arguments:", dict(self.args._get_kwargs()))
         self.logger.log("Arguments:", self.args)
-        self.train()
-        # self.test()
-        if self.args["log"]:
-            if not os.path.isdir(self.args["log_dir"]):
-                os.mkdir(self.args["log_dir"])
-            self.logger.save_html(self.args["log_dir"] / self.log_name)
-
-        # delete all temporary files
-        if os.listdir(self.temp_dir) != []:
-            os.system(f"rm -rf {self.temp_dir}")
+        if self.args["tunable_params_vs_values"]:
+            self.hyperparam_tunning(self.args["tunable_params_vs_values"])
+        else:
+            self.train()

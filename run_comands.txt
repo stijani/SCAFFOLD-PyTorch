@@ -22,15 +22,15 @@ For NIID - 1, 2, 5 e.t.c partitioning, like in fedshare
         python ./data/utils/run.py\
          --dataset cifar10\
          --alpha 0\
-         --distribution iid-client-100\
-         --client_num_in_total 100\
+         --distribution niid-1-client-10\
+         --client_num_in_total 10\
          --fraction 1\
-         --classes -1\
+         --classes 1\
          --seed 17\
          --emnist_split byclass\
          --type user\
          --client_num_in_each_pickles 10\
-         --root ../../dataset/fl-datasets\
+         --root ../../dataset/fl-datasets-test\
          --num_classes_dataset 10 
 
 For Dirichlet partitioning, like in other papers
@@ -52,4 +52,8 @@ For Dirichlet partitioning, like in other papers
 
 
 Model Training
+nohup python ./src/server/fedavg.py --config cifar10 --device 5 --exp_name fedavg &
+nohup python ./src/server/unbiased_update.py --config cifar10 --device 5 --exp_name unbiased_update &
+nohup python ./src/server/fedprox.py --config cifar10 --device 5 --exp_name fedprox &
+nohup python ./src/server/fedavg.py --config cifar10 --device 2 --exp_name hyperparam_tunning &
 

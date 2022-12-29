@@ -7,27 +7,70 @@ from tqdm import tqdm
 
 from base import ServerBase
 from client.scaffold import SCAFFOLDClient
-from config.util import clone_parameters, get_args
+#from config.util import clone_parameters, get_args
+from config.util import clone_parameters
+from config.options import CONFIG_CIFAR10, CONFIG_MNIST
+import argparse
+import os
+from argparse import Namespace
+from collections import OrderedDict
+from copy import deepcopy
+import csv
+from rich.console import Console
+import numpy as np
+import json
+
+
+ap = argparse.ArgumentParser()
+ap.add_argument("--config", required=True, help="config object to use")
+ap.add_argument("--device", required=True, type=int, help="gpu device to use")
+ap.add_argument("--exp_name", required=True, type=str, help="summarised name for this experiment")
+cmd_args = vars(ap.parse_args())
+
+# configs
+configs = {
+    "cifar10": CONFIG_CIFAR10,
+    "mnist": CONFIG_MNIST
+}
+
+config = configs[cmd_args["config"]]
+config["gpu"] = cmd_args["device"]
+config["exp_name"] = cmd_args["exp_name"]
 
 
 class SCAFFOLDServer(ServerBase):
     def __init__(self):
-        super(SCAFFOLDServer, self).__init__(get_args(), "SCAFFOLD")
+        #super(SCAFFOLDServer, self).__init__(get_args(), "SCAFFOLD")
+        super(SCAFFOLDServer, self).__init__(config, "SCAFFOLD")
 
         self.trainer = SCAFFOLDClient(
-            backbone=self.backbone(self.args.dataset),
-            dataset=self.args.dataset,
-            batch_size=self.args.batch_size,
-            valset_ratio=self.args.valset_ratio,
-            testset_ratio=self.args.testset_ratio,
-            local_epochs=self.args.local_epochs,
-            local_lr=self.args.local_lr,
+            # backbone=self.backbone(self.args[dataset),
+            # dataset=self.args[dataset,
+            # batch_size=self.args[batch_size,
+            # valset_ratio=self.args[valset_ratio,
+            # testset_ratio=self.args[testset_ratio,
+            # local_epochs=self.args[local_epochs,
+            # local_lr=self.args[local_lr,
+            # logger=self.logger,
+            # gpu=self.args[gpu,
+            backbone=self.backbone,
+            dataset=self.args["dataset"],
+            processed_data_dir = self.args["processed_data_dir"],
+            batch_size=self.args["batch_size"],
+            valset_ratio=self.args["valset_ratio"],
+            testset_ratio=self.args["testset_ratio"],
+            local_epochs=self.args["local_epochs"],
+            local_lr=self.args["local_lr"],
+            lr_schedule_step=self.args["lr_schedule_step"],
+            lr_schedule_rate=self.args["lr_schedule_rate"],
+            momentum=self.args["momentum"],
             logger=self.logger,
-            gpu=self.args.gpu,
+            gpu=self.args["gpu"],
         )
         self.c_global = [
             torch.zeros_like(param).to(self.device)
-            for param in self.backbone(self.args.dataset).parameters()
+            #for param in self.backbone(self.args["dataset"]).parameters()
+            for param in self.backbone.parameters()
         ]
         self.global_lr = 1.0
         self.training_acc = [[] for _ in range(self.global_epochs)]
@@ -40,37 +83,63 @@ class SCAFFOLDServer(ServerBase):
                 "[bold green]Training...",
                 console=self.logger,
             )
-            if not self.args.log
+            if not self.args["log"]
             else tqdm(range(self.global_epochs), "Training...")
         )
-        for E in progress_bar:
 
-            if E % self.args.verbose_gap == 0:
+        params = json.dumps(self.args)
+        train_acc, train_loss = [params], [params]
+
+        for E in progress_bar:
+            if E % self.args["verbose_gap"] == 0:
                 self.logger.log("=" * 30, f"ROUND: {E}", "=" * 30)
 
             selected_clients = random.sample(
-                self.client_id_indices, self.args.client_num_per_round
+                self.client_id_indices, self.args["client_num_per_round"]
             )
             res_cache = []
             for client_id in selected_clients:
                 client_local_params = clone_parameters(self.global_params_dict)
+                #print(client_local_params)
                 res, stats = self.trainer.train(
                     client_id=client_id,
                     model_params=client_local_params,
                     c_global=self.c_global,
-                    verbose=(E % self.args.verbose_gap) == 0,
+                    #verbose=(E % self.args["verbose_gap"]) == 0,
+                    verbose=False,
                 )
 
                 res_cache.append(res)
                 self.training_acc[E].append(stats["acc_before"])
             self.aggregate(res_cache)
 
-            if E % self.args.save_period == 0 and self.args.save_period > 0:
-                torch.save(
-                    self.global_params_dict, self.temp_dir / "global_model.pt",
-                )
-                with open(self.temp_dir / "epoch.pkl", "wb") as f:
-                    pickle.dump(E, f)
+            # this epoch's training has completed, let's test it with the global test data
+            if E % self.args["global_test_period"] == 0:
+                acc_, loss_ = self.test_global(E) # test current global model on the global test dataset
+                train_acc.append(acc_)
+                train_loss.append(loss_)
+
+            # decay the lr if applicable at this step
+            if self.trainer.lr_schedule_rate:
+                self.trainer.scheduler.step()
+        # create the metric directories
+        metric_dir_acc = os.path.join(self.args["metric_file_dir"], "acc")
+        metric_dir_loss = os.path.join(self.args["metric_file_dir"], "loss")
+        os.makedirs(metric_dir_acc, exist_ok = True)
+        os.makedirs(metric_dir_loss, exist_ok = True)
+        # export results
+        with open(os.path.join(metric_dir_acc, self.args["metric_filename"]), 'a') as f, open(os.path.join(metric_dir_loss, self.args["metric_filename"]), 'a') as g:
+            writer1 = csv.writer(f)
+            writer2 = csv.writer(g)
+            writer1.writerow(train_acc)
+            writer2.writerow(train_loss)
+
+            # if E % self.args["save_period"] == 0 and self.args["save_period"] > 0:
+            #     torch.save(
+            #         self.global_params_dict, self.temp_dir / "global_model.pt",
+            #     )
+            #     with open(self.temp_dir / "epoch.pkl", "wb") as f:
+            #         pickle.dump(E, f)
 
     def aggregate(self, res_cache):
         y_delta_cache = list(zip(*res_cache))[0]
@@ -82,8 +151,8 @@ class SCAFFOLDServer(ServerBase):
         # update global model
         avg_weight = torch.tensor(
             [
-                1 / self.args.client_num_per_round
-                for _ in range(self.args.client_num_per_round)
+                1 / self.args["client_num_per_round"]
+                for _ in range(self.args["client_num_per_round"])
             ],
             device=self.device,
         )
@@ -95,7 +164,7 @@ class SCAFFOLDServer(ServerBase):
         for c_g, c_del in zip(self.c_global, zip(*c_delta_cache)):
             c_del = torch.sum(avg_weight * torch.stack(c_del, dim=-1), dim=-1)
             c_g.data += (
-                self.args.client_num_per_round / len(self.client_id_indices)
+                self.args["client_num_per_round"] / len(self.client_id_indices)
             ) * c_del
 
 

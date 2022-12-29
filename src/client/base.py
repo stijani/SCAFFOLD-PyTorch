@@ -6,9 +6,12 @@ import torch
 import numpy as np
 from rich.console import Console
 from torch.utils.data import Subset, DataLoader
+from torchvision import transforms
 import sys
 sys.path.append("./")
 from data.utils.util import get_dataset
+from data.utils.dataset_from_subset import DatasetFromSubset
+from data.utils.augmentations import AUGMENTATIONS
 
 
 class ClientBase:
@@ -22,12 +25,14 @@ class ClientBase:
         testset_ratio: float,
         local_epochs: int,
         local_lr: float,
+        lr_schedule_step: int,
+        lr_schedule_rate: float,
         momentum: float,
         logger: Console,
         gpu: int,
     ):
         self.device = torch.device(
-            "cuda" if gpu and torch.cuda.is_available() else "cpu"
+            f"cuda:{gpu}" if gpu and torch.cuda.is_available() else "cpu"
         )
         self.client_id: int = None
         self.valset: Subset = None
@@ -41,18 +46,30 @@ class ClientBase:
         self.testset_ratio = testset_ratio
         self.local_epochs = local_epochs
         self.local_lr = local_lr
+        self.lr_schedule_step = lr_schedule_step
+        self.lr_schedule_rate = lr_schedule_rate
         self.momentum = momentum
         self.criterion = torch.nn.CrossEntropyLoss()
         self.logger = logger
         self.untrainable_params: Dict[str, Dict[str, torch.Tensor]] = {}
         self.optimizer: torch.optim.Optimizer = self.get_optimizer()
+        self.scheduler = self.get_scheduler()
 
 
     def get_optimizer(self):
         if self.momentum:
             return torch.optim.SGD(self.model.parameters(), lr=self.local_lr, momentum=self.momentum)
         else:
-            return torch.optim.SGD(self.model.parameters(), lr=local_lr)
+            return torch.optim.SGD(self.model.parameters(), lr=self.local_lr)
+
+    def get_scheduler(self):
+        if self.lr_schedule_rate:
+            scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, 
+                                                        step_size=self.lr_schedule_step, 
+                                                        gamma=self.lr_schedule_rate
+                                                        )
+            return scheduler
+
 
     @torch.no_grad()
     def evaluate(self, data, bs=32): # TODO: add type anno for data
@@ -60,7 +77,7 @@ class ClientBase:
         self.model.eval()
         # size = 0
         loss = 0
-        correct = 0
+        correct = 0.
         dataloader = DataLoader(data, bs) # TODO: change eval bs argument
         for x, y in dataloader:
             ##################################
@@ -78,6 +95,7 @@ class ClientBase:
         acc = (correct.float() / size_) * 100.0
         loss = loss / size_
         return loss.item(), acc.item()
+        
 
     def train(
         self,
@@ -131,9 +149,10 @@ class ClientBase:
             self.valset_ratio,
             self.testset_ratio,
         )
-        self.trainset = datasets["train"]
-        self.valset = datasets["val"]
-        self.testset = datasets["test"]
+        #self.trainset = datasets["train"]
+        self.trainset = DatasetFromSubset(datasets["train"], transform=AUGMENTATIONS[self.dataset])   
+        self.valset = datasets["val"] # empty dataset, not used
+        self.testset = datasets["test"] # empty dataset, not used
 
     def _log_while_training(self, evaluate=False, verbose=False):
         def _log_and_train(*args, **kwargs):

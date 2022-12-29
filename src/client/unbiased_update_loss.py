@@ -47,19 +47,35 @@ class UnbiasedUpdateClient(ClientBase):
         self.batch_size_unbiased_step = batch_size_unbiased_step
         #self.mu = 1.0
 
+    # def unbiased_step(self, model):
+    #     model.train()
+    #     x, y = self.get_data_batch_unbiased()
+    #     x /= 255.0
+    #     logits = model(x)
+    #     loss = self.criterion(logits, y)
+    #     model.zero_grad()
+    #     loss.backward()
+    #     return model
+
     def unbiased_step(self, model):
+        #optimizer = torch.optim.SGD(model.parameters(), lr=self.local_lr)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+        #print(torch.sum(list(model.parameters())[3]))
         model.train()
         x, y = self.get_data_batch_unbiased()
         x /= 255.0
         logits = model(x)
         loss = self.criterion(logits, y)
-        model.zero_grad()
+        #model.zero_grad()
+        optimizer.zero_grad()
         loss.backward()
+        optimizer.step()
+        #print(torch.sum(list(model.parameters())[3]))
         return model
 
     def _train(self):
         unbiased_model =  self.unbiased_step(deepcopy(self.model))
-        unbiased_grads =  self.get_parameter_grads(unbiased_model)
+        unbiased_weights =  unbiased_model.parameters()
         layer_names = self.model.state_dict().keys() 
         self.model.train()
         for _ in range(self.local_epochs): # this is a local step, not epoch
@@ -67,28 +83,53 @@ class UnbiasedUpdateClient(ClientBase):
             x /= 255.0
             logits = self.model(x)
             loss = self.criterion(logits, y)
-            #self.optimizer.zero_grad()
-            self.model.zero_grad()
+            proxy = 0.
+            for p_g, p_l in zip(unbiased_weights, self.model.parameters()):
+                #mu = 10 ############## just for test
+                proxy += torch.sum((p_g - p_l) * (p_g - p_l))
+                #proxy += torch.sum((p_g + p_l) * (p_g + p_l))
+                #print("XXXXXXXXXXXXXXXXX", torch.sum(p_g))
+                #print("YYYYYYYYYYYYYYYYY", torch.sum(p_l))
+                #print(proxy)
+                #proxy += torch.sum((p_g - p_l))
+                #proxy = (1 / 2) * proxy
+                loss = loss + proxy
+                #print(proxy)
+            self.optimizer.zero_grad()
             loss.backward()
-            #self.optimizer.step()
-            with torch.no_grad():
-                new_params_dict = {}
-                new_params_grads = {} # TODO: not used, remove
-                for layer_name, layer_param in zip(layer_names, self.model.parameters()):
-                    layer_grad = self.beta * unbiased_grads[layer_name] + (1 - self.beta) * layer_param.grad
-                    if self.lr_schedule_step:
-                        new_layer_params = layer_param - layer_grad * self.optimizer.param_groups[0]['lr']
-                    else:
-                        new_layer_params = layer_param - layer_grad * self.local_lr
-                    
-                    self.optimizer.param_groups[0]['lr']
-                    new_params_dict[layer_name] = new_layer_params
-                    new_params_grads[layer_name] = layer_grad ######
-            self.model.load_state_dict(new_params_dict)
+            self.optimizer.step()
         return (
             list(deepcopy(self.model.state_dict(keep_vars=True)).values()),
             len(self.trainset.dataset),
         )
+
+    # def _train(self):
+    #     unbiased_model =  self.unbiased_step(deepcopy(self.model))
+    #     unbiased_grads =  self.get_parameter_grads(unbiased_model)
+    #     layer_names = self.model.state_dict().keys() 
+    #     self.model.train()
+    #     for _ in range(self.local_epochs): # this is a local step, not epoch
+    #         x, y = self.get_data_batch()
+    #         x /= 255.0
+    #         logits = self.model(x)
+    #         loss = self.criterion(logits, y)
+    #         #self.optimizer.zero_grad()
+    #         self.model.zero_grad()
+    #         loss.backward()
+    #         #self.optimizer.step()
+    #         with torch.no_grad():
+    #             new_params_dict = {}
+    #             new_params_grads = {} # TODO: not used, remove
+    #             for layer_name, layer_param in zip(layer_names, self.model.parameters()):
+    #                 layer_grad = self.beta * unbiased_grads[layer_name] + (1 - self.beta) * layer_param.grad
+    #                 new_layer_params = layer_param - layer_grad * self.local_lr
+    #                 new_params_dict[layer_name] = new_layer_params
+    #                 new_params_grads[layer_name] = layer_grad ######
+    #         self.model.load_state_dict(new_params_dict)
+    #     return (
+    #         list(deepcopy(self.model.state_dict(keep_vars=True)).values()),
+    #         len(self.trainset.dataset),
+    #     )
 
 
     @torch.no_grad()
