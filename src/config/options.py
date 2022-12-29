@@ -34,7 +34,7 @@ CONFIG_CIFAR10 = {
     
     # local training
     "local_epochs": 100,
-    "local_lr": 1e-3,
+    "local_lr": 1e-2,
     # "momentum": 0.9,
     "momentum": None,
     "batch_size": 64,
