@@ -90,6 +90,7 @@ class ServerBase:
            2. aggregates clients' model weigths and 
            3. saves the aggregated weigths periodically
         """
+        self.logger.log("Arguments:", self.args)
         params = json.dumps(self.args)
         train_acc, train_loss = [params], [params]
 
@@ -126,7 +127,7 @@ class ServerBase:
                 train_loss.append(loss_)
                 
             # decay the lr if applicable at this step
-            if self.trainer.lr_schedule_rate:
+            if self.trainer.args["lr_schedule_rate"]:
                 self.trainer.scheduler.step()
         # create the metric directories
         metric_dir_acc = os.path.join(self.args["metric_file_dir"], "acc")
@@ -250,7 +251,6 @@ class ServerBase:
     def test_global(self, E):
         """TODO: write doc string
         """
-        #self.logger.log("=" * 30, f"GLOBAL TEST RESULTS AT ROUND: {E}", "=" * 30)
         X = torch.tensor(self.X_global_test).permute([0, -1, 1, 2]).float() 
         y = torch.tensor(self.y_global_test).long()
         data = TensorDataset(X, y)
@@ -266,25 +266,30 @@ class ServerBase:
         return acc_global, loss_global
 
 
-    def hyperparam_tunning(self, tunable_params_vs_values):
-        exp_name = self.args['exp_name']
-        for tunable_param, values in tunable_params_vs_values.items():
-            for value in values:
-                self.args[tunable_param] = value
-                self.args["exp_name"] = f"{exp_name}_{tunable_param}: {value}"
-                self.train()
-                # reset the global model
-                if self.args["init_weigth_file"]:
-                    #self.global_params_dict = torch.load(self.args["init_weigth_file"]).to(self.device)
-                     _dummy_model.load_state_dict(torch.load(self.args["init_weigth_file"]))
-                _dummy_model = self.backbone.to(self.device)
-                self.global_params_dict = OrderedDict(_dummy_model.state_dict(keep_vars=True))
+    # def hyperparam_tunning(self):
+    #     exp_name = self.trainer.args['exp_name']
+    #     for tunable_param, values in self.trainer.args["tunable_params_vs_values"].items():
+    #         for value in values:
+    #             self.trainer.args[tunable_param] = value
 
-    
-    def run(self):
-        # self.logger.log("Arguments:", dict(self.args._get_kwargs()))
-        self.logger.log("Arguments:", self.args)
-        if self.args["tunable_params_vs_values"]:
-            self.hyperparam_tunning(self.args["tunable_params_vs_values"])
-        else:
-            self.train()
+    #             # reset the optimizer and scheduler as the lr might have changed
+    #             #self.trainer.arg_dict[tunable_param] = value
+    #             self.trainer.optimizer = self.trainer.get_optimizer()
+    #             self.trainer.scheduler = self.trainer.get_scheduler()
+    #             print("##############################$$$$$", self.trainer.optimizer)
+    #             self.trainer.args["exp_name"] = f"{exp_name}_{tunable_param}: {value}"
+
+    #             self.train()
+    #             # reset the global model
+    #             if self.trainer.args["init_weigth_file"]:
+    #                 reset_model = self.backbone
+    #                 reset_model.load_state_dict(torch.load(self.trainer.args["init_weigth_file"]))
+    #             reset_model.to(self.device)
+    #             self.global_params_dict = OrderedDict(reset_model.state_dict(keep_vars=True))
+
+
+    # def run(self):
+    #     # if self.trainer.args["tunable_params_vs_values"]:
+    #     #     self.hyperparam_tunning()
+    #     # else:
+    #     self.train()

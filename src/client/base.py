@@ -18,55 +18,36 @@ class ClientBase:
     def __init__(
         self,
         backbone: torch.nn.Module,
-        dataset: str,
-        processed_data_dir,
-        batch_size: int,
-        valset_ratio: float,
-        testset_ratio: float,
-        local_epochs: int,
-        local_lr: float,
-        lr_schedule_step: int,
-        lr_schedule_rate: float,
-        momentum: float,
         logger: Console,
-        gpu: int,
+        arg_dict: Dict
     ):
+        self.arg_dict = arg_dict
         self.device = torch.device(
-            f"cuda:{gpu}" if gpu and torch.cuda.is_available() else "cpu"
+            f"cuda:{arg_dict['gpu']}" if arg_dict['gpu'] and torch.cuda.is_available() else 'cpu'
         )
         self.client_id: int = None
         self.valset: Subset = None
         self.trainset: Subset = None
         self.testset: Subset = None
         self.model: torch.nn.Module = deepcopy(backbone).to(self.device)
-        self.dataset = dataset
-        self.processed_data_dir = processed_data_dir
-        self.batch_size = batch_size
-        self.valset_ratio = valset_ratio
-        self.testset_ratio = testset_ratio
-        self.local_epochs = local_epochs
-        self.local_lr = local_lr
-        self.lr_schedule_step = lr_schedule_step
-        self.lr_schedule_rate = lr_schedule_rate
-        self.momentum = momentum
-        self.criterion = torch.nn.CrossEntropyLoss()
         self.logger = logger
+        self.criterion = torch.nn.CrossEntropyLoss()
         self.untrainable_params: Dict[str, Dict[str, torch.Tensor]] = {}
         self.optimizer: torch.optim.Optimizer = self.get_optimizer()
         self.scheduler = self.get_scheduler()
 
 
     def get_optimizer(self):
-        if self.momentum:
-            return torch.optim.SGD(self.model.parameters(), lr=self.local_lr, momentum=self.momentum)
+        if self.arg_dict["momentum"]:
+            return torch.optim.SGD(self.model.parameters(), lr=self.arg_dict["local_lr"], momentum=self.arg_dict["momentum"])
         else:
-            return torch.optim.SGD(self.model.parameters(), lr=self.local_lr)
+            return torch.optim.SGD(self.model.parameters(), lr=self.arg_dict["local_lr"])
 
     def get_scheduler(self):
-        if self.lr_schedule_rate:
+        if self.arg_dict["lr_schedule_rate"] and self.arg_dict["lr_schedule_step"]:
             scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, 
-                                                        step_size=self.lr_schedule_step, 
-                                                        gamma=self.lr_schedule_rate
+                                                        step_size=self.arg_dict["lr_schedule_step"], 
+                                                        gamma=self.arg_dict["lr_schedule_rate"]
                                                         )
             return scheduler
 
@@ -111,7 +92,7 @@ class ClientBase:
 
     def _train(self):
         self.model.train()
-        for _ in range(self.local_epochs):
+        for _ in range(self.arg_dict["local_epochs"]):
             x, y = self.get_data_batch()
             ##################################
             # I couldn't the transormation to work 
@@ -126,7 +107,6 @@ class ClientBase:
             loss.backward()
             self.optimizer.step()
         return (
-            #list(self.model.state_dict(keep_vars=True).values()),
             list(deepcopy(self.model.state_dict(keep_vars=True)).values()),
             len(self.trainset.dataset),
         )
@@ -142,15 +122,15 @@ class ClientBase:
 
     def get_client_local_dataset(self):
         datasets = get_dataset(
-            self.dataset,
-            self.processed_data_dir,
+            self.arg_dict["dataset"],
+            self.arg_dict["processed_data_dir"],
             self.client_id,
-            self.batch_size,
-            self.valset_ratio,
-            self.testset_ratio,
+            self.arg_dict["batch_size"],
+            self.arg_dict["valset_ratio"],
+            self.arg_dict["testset_ratio"],
         )
         #self.trainset = datasets["train"]
-        self.trainset = DatasetFromSubset(datasets["train"], transform=AUGMENTATIONS[self.dataset])   
+        self.trainset = DatasetFromSubset(datasets["train"], transform=AUGMENTATIONS[self.arg_dict["dataset"]])   
         self.valset = datasets["val"] # empty dataset, not used
         self.testset = datasets["test"] # empty dataset, not used
 
@@ -198,9 +178,9 @@ class ClientBase:
 
     def get_data_batch(self):
         batch_size = (
-            self.batch_size
-            if self.batch_size > 0
-            else int(len(self.trainset) / self.local_epochs)
+            self.arg_dict["batch_size"]
+            if self.arg_dict["batch_size"] > 0
+            else int(len(self.trainset) / self.arg_dict["local_epochs"])
         )
         indices = torch.from_numpy(
             np.random.choice(self.trainset.indices, batch_size)

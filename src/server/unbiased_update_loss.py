@@ -1,7 +1,5 @@
 from base import ServerBase
-# from client.fedavg import FedAvgClient
-from client.unbiased_update_loss import UnbiasedUpdateClient
-#from config.util import get_args
+from client.unbiased_update_loss import UnbiasedUpdateLossClient
 from config.options import CONFIG_CIFAR10, CONFIG_MNIST
 import argparse
 
@@ -22,28 +20,28 @@ config["gpu"] = cmd_args["device"]
 config["exp_name"] = cmd_args["exp_name"]
 
 
-class UnbiasedUpdate(ServerBase):
-    def __init__(self):
-        super(UnbiasedUpdate, self).__init__(config, "FedAvg")
-        self.trainer = UnbiasedUpdateClient(
+class UnbiasedUpdateLoss(ServerBase):
+    def __init__(self, args):
+        super(UnbiasedUpdateLoss, self).__init__(args, "UnbiasedUpdateLoss")
+        self.trainer = UnbiasedUpdateLossClient(
             backbone=self.backbone,
-            dataset=self.args["dataset"],
-            processed_data_dir = self.args["processed_data_dir"],
-            batch_size=self.args["batch_size"],
-            valset_ratio=self.args["valset_ratio"],
-            testset_ratio=self.args["testset_ratio"],
-            local_epochs=self.args["local_epochs"],
-            local_lr=self.args["local_lr"],
-            lr_schedule_step=self.args["lr_schedule_step"],
-            lr_schedule_rate=self.args["lr_schedule_rate"],
-            momentum=self.args["momentum"],
             logger=self.logger,
-            gpu=self.args["gpu"],
-            beta=self.args["beta"],
-            batch_size_unbiased_step=self.args["batch_size_unbiased_step"]
+            args=self.args
         )
 
-
+        
 if __name__ == "__main__":
-    server = UnbiasedUpdate()
-    server.run()
+    # hyperparameter tuning
+    if config["tunable_params_vs_values"]:
+        exp_name = config["exp_name"]
+        for tunable_param, values in config["tunable_params_vs_values"].items():
+            for value in values:
+                config[tunable_param] = value
+                config["exp_name"] = f"{exp_name}_{tunable_param}: {value}"
+                server = UnbiasedUpdateLoss(config)
+                server.train()
+
+    # one-off training
+    else:
+        server = UnbiasedUpdateLoss(config)
+        server.train()

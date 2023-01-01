@@ -39,40 +39,19 @@ config["exp_name"] = cmd_args["exp_name"]
 
 
 class SCAFFOLDServer(ServerBase):
-    def __init__(self):
-        #super(SCAFFOLDServer, self).__init__(get_args(), "SCAFFOLD")
-        super(SCAFFOLDServer, self).__init__(config, "SCAFFOLD")
-
+    def __init__(self, args):
+        super(SCAFFOLDServer, self).__init__(args, "SCAFFOLD")
         self.trainer = SCAFFOLDClient(
-            # backbone=self.backbone(self.args[dataset),
-            # dataset=self.args[dataset,
-            # batch_size=self.args[batch_size,
-            # valset_ratio=self.args[valset_ratio,
-            # testset_ratio=self.args[testset_ratio,
-            # local_epochs=self.args[local_epochs,
-            # local_lr=self.args[local_lr,
-            # logger=self.logger,
-            # gpu=self.args[gpu,
             backbone=self.backbone,
-            dataset=self.args["dataset"],
-            processed_data_dir = self.args["processed_data_dir"],
-            batch_size=self.args["batch_size"],
-            valset_ratio=self.args["valset_ratio"],
-            testset_ratio=self.args["testset_ratio"],
-            local_epochs=self.args["local_epochs"],
-            local_lr=self.args["local_lr"],
-            lr_schedule_step=self.args["lr_schedule_step"],
-            lr_schedule_rate=self.args["lr_schedule_rate"],
-            momentum=self.args["momentum"],
             logger=self.logger,
-            gpu=self.args["gpu"],
+            args=self.args
         )
         self.c_global = [
             torch.zeros_like(param).to(self.device)
             #for param in self.backbone(self.args["dataset"]).parameters()
             for param in self.backbone.parameters()
         ]
-        self.global_lr = 1.0
+        self.global_lr = self.args["global_lr"]
         self.training_acc = [[] for _ in range(self.global_epochs)]
 
     def train(self):
@@ -86,7 +65,7 @@ class SCAFFOLDServer(ServerBase):
             if not self.args["log"]
             else tqdm(range(self.global_epochs), "Training...")
         )
-
+        self.logger.log("Arguments:", self.args)
         params = json.dumps(self.args)
         train_acc, train_loss = [params], [params]
 
@@ -120,7 +99,7 @@ class SCAFFOLDServer(ServerBase):
                 train_loss.append(loss_)
 
             # decay the lr if applicable at this step
-            if self.trainer.lr_schedule_rate:
+            if self.trainer.args["lr_schedule_rate"]:
                 self.trainer.scheduler.step()
         # create the metric directories
         metric_dir_acc = os.path.join(self.args["metric_file_dir"], "acc")
@@ -169,5 +148,17 @@ class SCAFFOLDServer(ServerBase):
 
 
 if __name__ == "__main__":
-    server = SCAFFOLDServer()
-    server.run()
+    # hyperparameter tuning
+    if config["tunable_params_vs_values"]:
+        exp_name = config["exp_name"]
+        for tunable_param, values in config["tunable_params_vs_values"].items():
+            for value in values:
+                config[tunable_param] = value
+                config["exp_name"] = f"{exp_name}_{tunable_param}: {value}"
+                server = SCAFFOLDServer(config)
+                server.train()
+
+    # one-off training
+    else:
+        server = SCAFFOLDServer(config)
+        server.train()

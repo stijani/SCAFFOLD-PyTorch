@@ -12,40 +12,16 @@ class UnbiasedUpdateClient(ClientBase):
     def __init__(
         self,
         backbone: torch.nn.Module,
-        dataset: str,
-        processed_data_dir: str,
-        batch_size: int,
-        valset_ratio: float,
-        testset_ratio: float,
-        local_epochs: int,
-        local_lr: float,
-        lr_schedule_step: int,
-        lr_schedule_rate: float,
-        momentum: float,
         logger: Console,
-        gpu: int,
-        beta: float,
-        batch_size_unbiased_step: int
+        args
     ):
         super(UnbiasedUpdateClient, self).__init__(
             backbone,
-            dataset,
-            processed_data_dir,
-            batch_size,
-            valset_ratio,
-            testset_ratio,
-            local_epochs,
-            local_lr,
-            lr_schedule_step,
-            lr_schedule_rate,
-            momentum,
             logger,
-            gpu,
+            args
         )
         self.trainable_global_params: List[torch.Tensor] = None
-        self.beta = beta
-        self.batch_size_unbiased_step = batch_size_unbiased_step
-        #self.mu = 1.0
+        self.args = self.arg_dict
 
     def unbiased_step(self, model):
         model.train()
@@ -62,7 +38,7 @@ class UnbiasedUpdateClient(ClientBase):
         unbiased_grads =  self.get_parameter_grads(unbiased_model)
         layer_names = self.model.state_dict().keys() 
         self.model.train()
-        for _ in range(self.local_epochs): # this is a local step, not epoch
+        for _ in range(self.args["local_epochs"]): # this is a local step, not epoch
             x, y = self.get_data_batch()
             x /= 255.0
             logits = self.model(x)
@@ -70,18 +46,15 @@ class UnbiasedUpdateClient(ClientBase):
             #self.optimizer.zero_grad()
             self.model.zero_grad()
             loss.backward()
-            #self.optimizer.step()
             with torch.no_grad():
                 new_params_dict = {}
                 new_params_grads = {} # TODO: not used, remove
                 for layer_name, layer_param in zip(layer_names, self.model.parameters()):
-                    layer_grad = self.beta * unbiased_grads[layer_name] + (1 - self.beta) * layer_param.grad
-                    if self.lr_schedule_step:
+                    layer_grad = self.args["beta"] * unbiased_grads[layer_name] + (1 - self.args["beta"]) * layer_param.grad
+                    if self.args["lr_schedule_step"]:
                         new_layer_params = layer_param - layer_grad * self.optimizer.param_groups[0]['lr']
                     else:
-                        new_layer_params = layer_param - layer_grad * self.local_lr
-                    
-                    self.optimizer.param_groups[0]['lr']
+                        new_layer_params = layer_param - layer_grad * self.args["local_lr"]
                     new_params_dict[layer_name] = new_layer_params
                     new_params_grads[layer_name] = layer_grad ######
             self.model.load_state_dict(new_params_dict)
@@ -96,13 +69,13 @@ class UnbiasedUpdateClient(ClientBase):
         model_weights = current_model.parameters()
         final_weights_update = []
         for unbiased_weight, model_weight in zip(unbiased_weights, model_weights):
-            final_weights_update.append((1 - self.beta) * model_weight + self.beta * unbiased_weight)
+            final_weights_update.append((1 - self.args["beta"]) * model_weight + self.args["beta"] * unbiased_weight)
         return final_weights_update
 
 
 
     def get_data_batch_unbiased(self):
-        batch_size = self.batch_size_unbiased_step
+        batch_size = self.args["batch_size_unbiased_step"]
         # batch_size = len(self.trainset)
         indices = torch.from_numpy(
             np.random.choice(self.trainset.indices, batch_size)

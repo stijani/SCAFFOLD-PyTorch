@@ -12,36 +12,17 @@ class SCAFFOLDClient(ClientBase):
     def __init__(
         self,
         backbone: torch.nn.Module,
-        dataset: str,
-        processed_data_dir: str,
-        batch_size: int,
-        valset_ratio: float,
-        testset_ratio: float,
-        local_epochs: int,
-        local_lr: float,
-        lr_schedule_step: int,
-        lr_schedule_rate: float,
-        momentum: float,
         logger: Console,
-        gpu: int,
+        args
     ):
         super(SCAFFOLDClient, self).__init__(
             backbone,
-            dataset,
-            processed_data_dir,
-            batch_size,
-            valset_ratio,
-            testset_ratio,
-            local_epochs,
-            local_lr,
-            lr_schedule_step,
-            lr_schedule_rate,
-            momentum,
             logger,
-            gpu,
+            args
         )
         self.c_local: Dict[List[torch.Tensor]] = {}
         self.c_diff = []
+        self.args = self.arg_dict
 
     def train(
         self,
@@ -79,7 +60,7 @@ class SCAFFOLDClient(ClientBase):
             for param_l, param_g in zip(self.model.parameters(), trainable_parameters):
                 y_delta.append(param_l - param_g)
             # compute c_plus
-            coef = 1 / (self.local_epochs * self.local_lr)
+            coef = 1 / (self.args["local_epochs"] * self.args["local_lr"])
             for c_l, c_g, diff in zip(self.c_local[self.client_id], c_global, y_delta):
                 c_plus.append(c_l - c_g - coef * diff)
 
@@ -99,9 +80,9 @@ class SCAFFOLDClient(ClientBase):
 
     def _train(self):
         self.model.train()
-        for _ in range(self.local_epochs):
+        for _ in range(self.args["local_epochs"]):
             x, y = self.get_data_batch()
-            #x /= 255.0
+            x /= 255.0
             logits = self.model(x)
             loss = self.criterion(logits, y)
             self.optimizer.zero_grad()

@@ -56,4 +56,6 @@ nohup python ./src/server/fedavg.py --config cifar10 --device 5 --exp_name fedav
 nohup python ./src/server/unbiased_update.py --config cifar10 --device 5 --exp_name unbiased_update &
 nohup python ./src/server/fedprox.py --config cifar10 --device 5 --exp_name fedprox &
 nohup python ./src/server/fedavg.py --config cifar10 --device 2 --exp_name hyperparam_tunning &
+nohup python ./src/server/unbiased_update_loss.py --config cifar10 --device 7 --exp_name hyperparam_tunning &
+
 
